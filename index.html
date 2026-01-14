@@ -64,11 +64,11 @@
             LayoutDashboard, Users, TrendingUp, Calendar, DollarSign, Activity, Loader2, 
             Settings, Plus, Trash2, School, FileText, Save, Sun, Cloud, CloudRain, Snowflake, Ban, PenTool, 
             ChevronRight, Upload, FileSpreadsheet, LogOut, ArrowRight, Megaphone, CheckCircle2, AlertCircle, X, ChevronDown, RefreshCw, Database, PieChart as PieIcon, Clock, Search, MapPin, Edit2, TrendingDown, Filter,
-            ArrowUp, ArrowDown, Shield, Lock, LogIn
+            ArrowUp, ArrowDown, Shield, Lock, LogIn, User // Userアイコン追加
         } from "lucide-react";
         import { initializeApp } from "firebase/app";
         import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, updateDoc, getDocs, query, orderBy, where, serverTimestamp, writeBatch } from "firebase/firestore";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword } from "firebase/auth"; // updatePassword追加
 
         // ==========================================
         // 1. Firebase Config & Utilities
@@ -571,7 +571,7 @@
         };
 
         // ==========================================
-        // ログインコンポーネント (新規追加)
+        // ログインコンポーネント
         // ==========================================
         const Login = () => {
             const [email, setEmail] = useState("");
@@ -641,6 +641,111 @@
                                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LogIn className="w-5 h-5 mr-2" /> ログイン</>}
                             </button>
                         </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // マイページコンポーネント (新規追加)
+        // ==========================================
+        const MyPage = ({ user, onBack, showNotify }) => {
+            const [newPass, setNewPass] = useState("");
+            const [confPass, setConfPass] = useState("");
+            const [isUpdating, setIsUpdating] = useState(false);
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                if (newPass !== confPass) {
+                    showNotify("パスワードが一致しません", "error");
+                    return;
+                }
+                if (newPass.length < 6) {
+                    showNotify("パスワードは6文字以上で設定してください", "error");
+                    return;
+                }
+                
+                setIsUpdating(true);
+                try {
+                    await updatePassword(user, newPass);
+                    showNotify("パスワードを更新しました");
+                    setNewPass("");
+                    setConfPass("");
+                } catch (error) {
+                    console.error(error);
+                    if (error.code === 'auth/requires-recent-login') {
+                        showNotify("セキュリティのため、再ログイン後に再度お試しください", "error");
+                    } else {
+                        showNotify("更新に失敗しました: " + error.message, "error");
+                    }
+                } finally {
+                    setIsUpdating(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-brand-slate p-6 fade-in">
+                    <div className="max-w-2xl mx-auto">
+                        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-700 mb-6 font-bold">
+                            <ArrowUp className="w-4 h-4 mr-1 -rotate-90" /> 戻る
+                        </button>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-100 bg-gray-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-gray-200 text-brand-blue">
+                                        <User className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-800">マイページ</h2>
+                                        <p className="text-sm text-gray-500">{user.email}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                    <Lock className="w-5 h-5 mr-2 text-brand-blue"/>
+                                    パスワード変更
+                                </h3>
+                                <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="6文字以上"
+                                            value={newPass}
+                                            onChange={(e) => setNewPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">新しいパスワード（確認）</label>
+                                        <input 
+                                            type="password" 
+                                            className="w-full border border-gray-300 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-brand-blue"
+                                            placeholder="もう一度入力"
+                                            value={confPass}
+                                            onChange={(e) => setConfPass(e.target.value)}
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="pt-2">
+                                        <button 
+                                            type="submit" 
+                                            disabled={isUpdating}
+                                            className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
+                                        >
+                                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+                                            パスワードを更新する
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -838,11 +943,18 @@
                             <h2 className="text-xl font-bold text-gray-800 truncate">{campus.name}</h2>
                         </div>
                         <nav className="flex-1 p-4 space-y-1">
-                            {[{id:'daily',l:'日報入力',i:Calendar}, {id:'plan',l:'計画策定',i:FileText}, {id:'finance',l:'収支取込',i:FileSpreadsheet}].map(t => (
-                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${activeTab === t.id ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/30' : 'text-gray-500 hover:bg-gray-50'}`}>
-                                    <t.i className="w-5 h-5 mr-3" />{t.l}
-                                </button>
-                            ))}
+                            {[{id:'daily',l:'日報入力',i:Calendar}, {id:'plan',l:'計画策定',i:FileText}, {id:'finance',l:'収支取込',i:FileSpreadsheet}].map(t => {
+                                if (t.id === 'finance' && !isAdmin) return (
+                                    <button key={t.id} onClick={() => setActiveTab(t.id)} className="w-full flex items-center px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-50 transition-colors">
+                                        <div className="relative"><t.i className="w-5 h-5 mr-3" /><Lock className="w-3 h-3 absolute -top-1 -right-1 text-gray-400" /></div>{t.l}
+                                    </button>
+                                );
+                                return (
+                                    <button key={t.id} onClick={() => setActiveTab(t.id)} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${activeTab === t.id ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/30' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                        <t.i className="w-5 h-5 mr-3" />{t.l}
+                                    </button>
+                                )
+                            })}
                         </nav>
                         <div className="p-4 border-t border-gray-100"><button onClick={onBack} className="flex items-center text-gray-400 hover:text-gray-600 text-sm w-full px-4 py-2"><LogOut className="w-4 h-4 mr-2" /> 戻る</button></div>
                     </aside>
@@ -961,7 +1073,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (修正版: マーケティングKPI追加)
+        // 5. HQ Console Component
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache, isAdmin }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -1005,7 +1117,6 @@
 
             const monthDataForPL = useMemo(() => { return fullDashboardData.find(m => m.name === selectedMonth); }, [fullDashboardData, selectedMonth]);
 
-            // マーケティングタブ用 集計データ
             const marketingTotals = useMemo(() => {
                 const sum = displayData.reduce((acc, curr) => ({
                     flyers: acc.flyers + (curr.flyers || 0),
@@ -1017,7 +1128,6 @@
                 }), { flyers: 0, touchTry: 0, trialApp: 0, eventApp: 0, trialActual: 0, newEnrollments: 0 });
 
                 const totalApps = sum.trialApp + sum.eventApp;
-                // 入会率 = 入会数 / 体験実施数
                 const rate = sum.trialActual > 0 ? ((sum.newEnrollments / sum.trialActual) * 100).toFixed(1) : "0.0";
 
                 return { ...sum, totalApps, rate };
@@ -1466,20 +1576,19 @@
 
                             {activeTab === 'marketing' && (
                                 <div className="space-y-8 animate-in fade-in">
-                                    {/* NEW: KPI Cards Grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                        <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c2a71fb3-8a17-487f-9a43-8bbaf4fd5dbc.svg" colorClass="text-brand-blue" />
-                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c70b5f6d-6213-489c-bd5e-e3f6ce379f23.svg" colorClass="text-emerald-500" />
+                                        <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
+                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-500" />
                                         <StatCard
                                             title="体験・イベント申込"
                                             value={`${marketingTotals.totalApps}名`}
                                             subValue={`体験:${marketingTotals.trialApp} / イベ:${marketingTotals.eventApp}`}
-                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-1523x1551_v-fms_webp_aac06d68-945a-47cb-95d6-19c1f545a656.png"
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg"
                                             colorClass="text-brand-blue"
                                         />
-                                        <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_8a59c5ac-e140-4c01-a48b-c32bbeec5af0.svg" colorClass="text-brand-orange" />
-                                        <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_963a0f4f-287f-4143-8c66-6c301ca67ae8.svg" colorClass="text-emerald-600" />
-                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg" colorClass="text-rose-500" />
+                                        <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-brand-orange" />
+                                        <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-600" />
+                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-rose-500" />
                                     </div>
 
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
@@ -1662,6 +1771,9 @@
             const handleEnterHQ = () => setConsoleMode('hq');
             const handleEnterSchool = (id) => { setSelectedCampusId(id); setConsoleMode('school'); };
             const handleBack = () => { setConsoleMode('select'); setSelectedCampusId(null); };
+            
+            // 追加: マイページへの遷移
+            const handleMyPage = () => setConsoleMode('mypage');
 
             // 管理者モード切替ロジック
             const handleAdminToggle = () => {
@@ -1728,6 +1840,10 @@
                                         <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${isAdmin ? 'translate-x-5' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
+                                {/* マイページボタン */}
+                                <button onClick={handleMyPage} className="bg-white p-2 rounded-full shadow-sm border border-gray-100 text-gray-500 hover:text-brand-blue transition-colors" title="マイページ">
+                                    <User className="w-5 h-5" />
+                                </button>
                                 {/* ログアウトボタン */}
                                 <button onClick={handleLogout} className="bg-white p-2 rounded-full shadow-sm border border-gray-100 text-gray-500 hover:text-red-500 transition-colors" title="ログアウト">
                                     <LogOut className="w-5 h-5" />
@@ -1736,8 +1852,8 @@
 
                             <div className="max-w-4xl w-full">
                                 <div className="text-center mb-12">
-                                    <h1 className="text-4xl font-bold text-brand-blue mb-4 tracking-tight">ロボ団営業部ダッシュボードv3.0</h1>
-                                    <p className="text-gray-500">選択してください</p>
+                                    <h1 className="text-4xl font-bold text-brand-blue mb-4 tracking-tight">Robot School Dashboard V3</h1>
+                                    <p className="text-gray-500">管理コンソールを選択してください</p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div onClick={handleEnterHQ} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-xl hover:border-brand-blue/30 transition-all group relative overflow-hidden">
@@ -1746,7 +1862,7 @@
                                             <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-blue/20">
                                                 <LayoutDashboard className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部</h2>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部コンソール</h2>
                                             <p className="text-sm text-gray-500 mb-6">全校データの閲覧・管理</p>
                                             <span className="inline-flex items-center text-brand-blue font-bold text-sm group-hover:translate-x-1 transition-transform">ログイン <ArrowRight className="ml-2 w-4 h-4" /></span>
                                         </div>
@@ -1757,8 +1873,8 @@
                                             <div className="w-16 h-16 bg-brand-orange rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-orange/20">
                                                 <School className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎</h2>
-                                            <p className="text-sm text-gray-500 mb-6">日報・計画・収支取込</p>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎コンソール</h2>
+                                            <p className="text-sm text-gray-500 mb-6">日報・計画・収支入力</p>
                                             <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2">
                                                 {campusList.map(c => (
                                                     <button key={c.id} onClick={() => handleEnterSchool(c.id)} className="w-full text-left px-4 py-3 rounded-lg border border-gray-100 hover:border-brand-orange hover:bg-orange-50 transition-colors flex items-center justify-between group">
@@ -1777,6 +1893,7 @@
                             </div>
                         </div>
                     )}
+                    {consoleMode === 'mypage' && <MyPage user={user} onBack={handleBack} showNotify={showNotify} />}
                     {consoleMode === 'hq' && <HQConsole onBack={handleBack} campusList={campusList} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} isAdmin={isAdmin} />}
                     {consoleMode === 'school' && <SchoolConsole onBack={handleBack} campus={campusList.find(c=>c.id===selectedCampusId)} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} isAdmin={isAdmin} />}
                 </>
