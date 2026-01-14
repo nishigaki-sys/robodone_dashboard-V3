@@ -839,7 +839,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (修正版: マーケティンググラフ更新)
+        // 5. HQ Console Component (修正完了版)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -893,7 +893,7 @@
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
                         flyers: monthDataForPL.flyers, 
-                        touchTry: monthDataForPL.touchTry, // 追加
+                        touchTry: monthDataForPL.touchTry,
                         trialApp: monthDataForPL.trialApp, 
                         trialScheduled: monthDataForPL.trialScheduled,
                         trialActual: monthDataForPL.trialActual, 
@@ -909,7 +909,7 @@
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
                     flyers: acc.flyers + (curr.flyers || 0), 
-                    touchTry: acc.touchTry + (curr.touchTry || 0), // 追加
+                    touchTry: acc.touchTry + (curr.touchTry || 0),
                     trialApp: acc.trialApp + (curr.trialApp || 0), 
                     trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0),
                     trialActual: acc.trialActual + (curr.trialActual || 0), 
@@ -920,6 +920,52 @@
                     transferIns: 0, returns: 0, graduates: 0, transfers: 0, flyers: 0, touchTry: 0, trialApp: 0, trialScheduled: 0, trialActual: 0, partTime: 0 
                 });
             }, [displayData, viewMode, monthDataForPL]);
+
+            const monthlySummaryData = useMemo(() => {
+                if (viewMode !== 'monthly' || !monthDataForPL) return [];
+                const data = [
+                    { id: 'revenue', name: '売上', value: monthDataForPL.revenue, prev: monthDataForPL.prevRevenue, fill: COLORS.revenue },
+                    { id: 'ad', name: '広告宣伝費', value: monthDataForPL.ad, prev: monthDataForPL.prevAd, fill: COLORS.ad },
+                    { id: 'sales', name: '販売費', value: monthDataForPL.sales, prev: monthDataForPL.prevSales, fill: COLORS.sales },
+                    { id: 'labor', name: '人件費', value: monthDataForPL.labor, prev: monthDataForPL.prevLabor, fill: COLORS.labor },
+                    { id: 'facility', name: '設備費', value: monthDataForPL.facility, prev: monthDataForPL.prevFacility, fill: COLORS.facility },
+                    { id: 'admin', name: '一般管理費', value: monthDataForPL.admin, prev: monthDataForPL.prevAdmin, fill: COLORS.admin },
+                    { id: 'hq', name: '本社費', value: monthDataForPL.hq, prev: monthDataForPL.prevHq, fill: COLORS.hq },
+                    { id: 'other', name: 'その他', value: monthDataForPL.other, prev: monthDataForPL.prevOther, fill: COLORS.other },
+                    { id: 'profit', name: '営業利益', value: monthDataForPL.profit, prev: monthDataForPL.prevProfit, fill: COLORS.profit },
+                ];
+                return data;
+            }, [monthDataForPL, viewMode]);
+
+            const currentTotalStudents = useMemo(() => {
+                if (viewMode === 'monthly') return monthDataForPL ? monthDataForPL.students : 0;
+                if (viewMode === 'annual' || viewMode === 'half' || viewMode === 'quarter') {
+                    return displayData.length > 0 ? displayData[displayData.length - 1].students : 0;
+                }
+                const mData = fullDashboardData.find(m => m.name === selectedMonth);
+                return mData ? mData.students : 0;
+            }, [fullDashboardData, viewMode, selectedMonth, displayData, monthDataForPL]);
+
+            // ★★★ ここが抜けていたためエラーになっていました。復元しました。 ★★★
+            const currentViewData = useMemo(() => {
+                const viewLabel = { 'annual': '年度', 'half': '半期', 'quarter': '四半期', 'monthly': '月度', 'weekly': '週次' }[viewMode];
+                if (hoveredData) {
+                    return {
+                        ...hoveredData,
+                        revenue: hoveredData.revenue || 0, prevRevenue: hoveredData.prevRevenue,
+                        expense: hoveredData.expense || 0, prevExpense: hoveredData.prevExpense,
+                        profit: hoveredData.profit || 0, prevProfit: hoveredData.prevProfit,
+                        newEnrollments: hoveredData.newEnrollments || 0, prevNewEnrollments: hoveredData.prevNewEnrollments,
+                        withdrawals: hoveredData.withdrawals || 0, prevWithdrawals: hoveredData.prevWithdrawals,
+                        partTime: hoveredData.partTime || 0, totalStudents: hoveredData.students || 0, periodLabel: hoveredData.name
+                    };
+                } else {
+                    return {
+                        ...totals, totalStudents: currentTotalStudents, periodLabel: viewLabel === '月度' ? selectedMonth : viewLabel
+                    };
+                }
+            }, [hoveredData, totals, currentTotalStudents, viewMode, selectedMonth]);
+            // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
             const calcYoY = (curr, prev) => { if (!prev || prev === 0) return null; return ((curr / prev) * 100).toFixed(1); };
             const handleChartHover = (state) => { if (state && state.activePayload && state.activePayload.length > 0) { setHoveredData(state.activePayload[0].payload); } };
