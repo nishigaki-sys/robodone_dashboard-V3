@@ -886,7 +886,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (修正版: グラフ横並び対応)
+        // 5. HQ Console Component (修正版: 並び替え機能追加)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -906,6 +906,7 @@
             const [editingCampus, setEditingCampus] = useState(null);
             const [editName, setEditName] = useState("");
             const [editSheetName, setEditSheetName] = useState("");
+            const [isReordering, setIsReordering] = useState(false); // 追加: 並び替え中フラグ
 
             const filteredCampusList = useMemo(() => {
                 if (selectedHQCampusId === 'All') return campusList;
@@ -1023,7 +1024,8 @@
             const onBarClick = (data, idx, e, catKey) => { openDetailModal(catKey, data); };
             const handleAddCampus = async () => {
                 if (!newCampusId || !newCampusName) return showNotify("必須項目が空です", 'error');
-                try { await setDoc(doc(db, "campuses", newCampusId), { id: newCampusId, name: newCampusName, createdAt: serverTimestamp() }); setNewCampusId(""); setNewCampusName(""); refreshData(); showNotify("校舎を追加しました"); } catch(e) { showNotify("エラー: " + e.message, 'error'); }
+                // 新規作成時は末尾に追加 (orderを現在の要素数に設定)
+                try { await setDoc(doc(db, "campuses", newCampusId), { id: newCampusId, name: newCampusName, order: campusList.length, createdAt: serverTimestamp() }); setNewCampusId(""); setNewCampusName(""); refreshData(); showNotify("校舎を追加しました"); } catch(e) { showNotify("エラー: " + e.message, 'error'); }
             };
             const handleDeleteCampus = async (id, name) => {
                 if (!confirm(`${name} を削除しますか？`)) return;
@@ -1033,6 +1035,34 @@
             const handleUpdateCampus = async () => {
                 if (!editingCampus) return;
                 try { await updateDoc(doc(db, "campuses", editingCampus.id), { name: editName, sheetName: editSheetName, updatedAt: serverTimestamp() }); setEditModalOpen(false); setEditingCampus(null); refreshData(); showNotify("校舎情報を更新しました"); } catch (e) { showNotify("更新エラー: " + e.message, 'error'); }
+            };
+
+            // 追加: 校舎並び替え機能
+            const handleReorder = async (index, direction) => {
+                const targetIndex = index + direction;
+                if (targetIndex < 0 || targetIndex >= campusList.length) return;
+                
+                setIsReordering(true);
+                try {
+                    const batch = writeBatch(db);
+                    // 表示順を入れ替えたリストを作成
+                    const newList = [...campusList];
+                    [newList[index], newList[targetIndex]] = [newList[targetIndex], newList[index]];
+                    
+                    // リストの全項目のorderフィールドを再設定（正規化）
+                    newList.forEach((item, idx) => {
+                        const ref = doc(db, "campuses", item.id);
+                        batch.update(ref, { order: idx });
+                    });
+                    
+                    await batch.commit();
+                    refreshData(); // 再取得して画面反映
+                    showNotify("並び順を更新しました");
+                } catch(e) {
+                    showNotify("並び替えエラー: " + e.message, 'error');
+                } finally {
+                    setIsReordering(false);
+                }
             };
 
             const WeeklyAxisTick = ({ x, y, payload }) => {
@@ -1354,15 +1384,12 @@
                                                 <YAxis yAxisId="right" orientation="right" />
                                                 <Tooltip />
                                                 <Legend />
-                                                {/* 変更: 門配数とT&T数は左軸 */}
                                                 <Bar yAxisId="left" dataKey="flyers" name="門配数" fill="#94a3b8" />
                                                 <Bar yAxisId="left" dataKey="touchTry" name="T&T数" fill="#82ca9d" />
                                                 
-                                                {/* 変更: 申込は積み上げ、予約・実施は横並び */}
                                                 <Bar yAxisId="right" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
                                                 <Bar yAxisId="right" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
                                                 
-                                                {/* 変更: stackIdを削除して横並びにする */}
                                                 <Bar yAxisId="right" dataKey="trialScheduled" name="実施予約" fill="#facc15" />
                                                 <Bar yAxisId="right" dataKey="trialActual" name="体験実施" fill="#f97316" />
                                                 
@@ -1383,10 +1410,15 @@
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {campusList.map(c=>(
-                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center">
+                                        {campusList.map((c, index)=>(
+                                            <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center group hover:shadow-md transition-shadow">
                                                 <div><div className="font-bold text-gray-700">{c.name}</div><div className="text-xs text-gray-400">{c.id}</div></div>
-                                                <div className="flex gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    {/* 追加: 並び替えボタン */}
+                                                    <div className="flex gap-1 mr-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleReorder(index, -1)} disabled={index === 0 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowUp className="w-4 h-4"/></button>
+                                                        <button onClick={() => handleReorder(index, 1)} disabled={index === campusList.length - 1 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowDown className="w-4 h-4"/></button>
+                                                    </div>
                                                     <button onClick={() => openEditCampus(c)} className="text-gray-400 hover:text-brand-blue p-2"><Edit2 className="w-4 h-4"/></button>
                                                     <button onClick={() => handleDeleteCampus(c.id, c.name)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
@@ -1402,7 +1434,7 @@
         }
 
         // ==========================================
-        // 6. App Component (DEFINED AFTER HQConsole & SchoolConsole)
+        // 6. App Component (修正版: ソート機能追加)
         // ==========================================
         function App() {
             const [consoleMode, setConsoleMode] = useState('select'); 
@@ -1452,22 +1484,34 @@
                         getDocs(collection(db, "trial_applications")),
                         getDocs(collection(db, "financial_updates"))
                     ]);
+                    
+                    // 修正: orderフィールドによるソート
                     const cList = campuses.docs.map(d => ({ id: d.id, ...d.data() }));
+                    cList.sort((a, b) => {
+                        // orderがあれば優先、なければcreatedAtでソート
+                        const orderA = typeof a.order === 'number' ? a.order : 9999;
+                        const orderB = typeof b.order === 'number' ? b.order : 9999;
+                        if (orderA !== orderB) return orderA - orderB;
+                        
+                        const timeA = a.createdAt?.seconds || 0;
+                        const timeB = b.createdAt?.seconds || 0;
+                        return timeA - timeB;
+                    });
+
                     const aData = {
                         enrollments: enroll.docs.map(d => ({id:d.id, ...d.data()})),
                         statusChanges: status.docs.map(d => ({id:d.id, ...d.data()})),
                         transfers: trans.docs.map(d => ({id:d.id, ...d.data()})),
                         dailyReports: reports.docs.map(d => ({id:d.id, ...d.data()})),
                         financials: finance.docs.map(d => ({id:d.id, ...d.data()})),
-                        // 修正: trialApps のデータマッピング
                         trialApps: trials.docs.map(d => {
                             const data = d.data();
                             return {
                                 id: d.id,
-                                campus: data.campus, // 校舎名
-                                date: data.date,     // 申込日
-                                trialDate: data.trialDate, // 実施予約日
-                                type: data.type,     // 種別
+                                campus: data.campus, 
+                                date: data.date,     
+                                trialDate: data.trialDate, 
+                                type: data.type,     
                                 createdAt: data.createdAt
                             };
                         }),
@@ -1544,7 +1588,7 @@
                 </>
             );
         }
-
+        
         const root = createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
