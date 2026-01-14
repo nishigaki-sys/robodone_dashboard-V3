@@ -179,7 +179,7 @@
         };
 
        // ==========================================
-        // 2. Data Processing Logic
+        // 2. Data Processing Logic (修正版: T&T集計追加)
         // ==========================================
         const determineDetailedCategory = (code) => {
             if (!code) return 'other';
@@ -200,16 +200,10 @@
             const sheetNameToIdMap = {};
             const targetCampusIds = new Set(campuses.map(c => c.id));
             
-            // 追加: あいまい検索用のマッチャーを作成
-            // 校舎名、連携名(sheetName)のいずれかが、データの校舎名に含まれていれば一致とみなす
+            // あいまい検索用マッチャー
             const targetCampusMatchers = campuses.map(c => ({
                 id: c.id,
-                keywords: [
-                    c.name, 
-                    c.sheetName, 
-                    normalizeString(c.name), 
-                    normalizeString(c.sheetName)
-                ].filter(k => k && k.trim().length > 0)
+                keywords: [c.name, c.sheetName, normalizeString(c.name), normalizeString(c.sheetName)].filter(k => k && k.trim().length > 0)
             }));
 
             campuses.forEach(c => {
@@ -218,25 +212,15 @@
                 sheetNameToIdMap[normalizeString(key)] = c.id;
             });
 
-            // 修正: 校舎判定ロジックを強化 (ID判定 + 完全一致 + 部分一致)
+            // 校舎判定ロジック
             const isTargetCampus = (item) => {
-                // 1. IDによる直接判定 (financials, dailyReports等はcampusIdを持つ)
                 if (item.campusId && targetCampusIds.has(item.campusId)) return true;
-                
-                // 2. 名称テキストの取得 (trialApps等はcampus/schoolを持つ)
                 const rawName = item.campus || item.school;
                 if (!rawName) return false;
-
                 const normName = normalizeString(rawName);
-
-                // 3. マップによる完全一致判定
                 let cId = sheetNameToIdMap[rawName] || sheetNameToIdMap[normName];
                 if (cId && targetCampusIds.has(cId)) return true;
-
-                // 4. 部分一致判定 (「ロボ団エディオン岡崎本店校」vs「岡崎本店」対応)
-                const matched = targetCampusMatchers.find(matcher => 
-                    matcher.keywords.some(keyword => normName.includes(keyword))
-                );
+                const matched = targetCampusMatchers.find(matcher => matcher.keywords.some(keyword => normName.includes(keyword)));
                 return matched ? true : false;
             };
 
@@ -333,18 +317,15 @@
                     
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 実実施数を日報の 'trialLessons' から集計
+                    // 追加: T&T数
+                    const dTouchTry = dayReports.reduce((sum, r) => sum + (Number(r.touchTry) || 0), 0);
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
-                    // trial_applications の集計
                     const trialAppsOnly = trialApps.filter(a => a.type === '体験会');
                     const eventAppsOnly = trialApps.filter(a => a.type !== '体験会');
 
-                    // 申込日(date)ベースの集計
                     const dTrialApp = filterDay(trialAppsOnly, null, 'date');
                     const dEventApp = filterDay(eventAppsOnly, null, 'date');
-                    
-                    // 実施予定日(trialDate)ベースの集計
                     const dTrialScheduled = filterDay(trialAppsOnly, null, 'trialDate'); 
                     const dEventScheduled = filterDay(eventAppsOnly, null, 'trialDate'); 
 
@@ -354,11 +335,12 @@
                         withdrawals: dWithdraw, withdrawals_neg: -dWithdraw,
                         graduates_neg: -dGrad, transfers_neg: -dTransferOut, recesses_neg: -dRecess,
                         flyers: dFlyers, 
+                        touchTry: dTouchTry, // 追加
                         trialApp: dTrialApp, 
                         eventApp: dEventApp, 
-                        trialScheduled: dTrialScheduled, // 予定
+                        trialScheduled: dTrialScheduled, 
                         eventScheduled: dEventScheduled, 
-                        trialActual: dTrialActual // 実績
+                        trialActual: dTrialActual
                     };
                 });
 
@@ -369,7 +351,8 @@
                         name: week.name, label: week.label,
                         newEnrollments: sum('newEnrollments'), transferIns: sum('transferIns'), returns: sum('returns'),
                         withdrawals: sum('withdrawals'), withdrawals_neg: sum('withdrawals_neg'), graduates_neg: sum('graduates_neg'),
-                        transfers_neg: sum('transfers_neg'), recesses_neg: sum('recesses_neg'), flyers: sum('flyers'),
+                        transfers_neg: sum('transfers_neg'), recesses_neg: sum('recesses_neg'), 
+                        flyers: sum('flyers'), touchTry: sum('touchTry'), // 追加
                         trialApp: sum('trialApp'), eventApp: sum('eventApp'), 
                         trialScheduled: sum('trialScheduled'), eventScheduled: sum('eventScheduled'),
                         trialActual: sum('trialActual')
@@ -386,6 +369,7 @@
                     withdrawals: sumDaily('withdrawals'), withdrawals_neg: sumDaily('withdrawals_neg'),
                     transfers_neg: sumDaily('transfers_neg'), graduates_neg: sumDaily('graduates_neg'), recesses_neg: sumDaily('recesses_neg'),
                     flyers: sumDaily('flyers'), 
+                    touchTry: sumDaily('touchTry'), // 追加
                     trialApp: sumDaily('trialApp'), 
                     eventApp: sumDaily('eventApp'),
                     trialScheduled: sumDaily('trialScheduled'),
@@ -413,7 +397,8 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
-                        'flyers','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
+                        // 修正: touchTryを追加
+                        'flyers','touchTry','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
                     ];
@@ -854,7 +839,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (DEFINED BEFORE APP)
+        // 5. HQ Console Component (修正版: マーケティンググラフ更新)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -907,8 +892,10 @@
                         withdrawals: monthDataForPL.withdrawals, prevWithdrawals: monthDataForPL.prevWithdrawals,
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
-                        flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, 
-                        trialScheduled: monthDataForPL.trialScheduled, // 修正: 追加
+                        flyers: monthDataForPL.flyers, 
+                        touchTry: monthDataForPL.touchTry, // 追加
+                        trialApp: monthDataForPL.trialApp, 
+                        trialScheduled: monthDataForPL.trialScheduled,
                         trialActual: monthDataForPL.trialActual, 
                         partTime: monthDataForPL.partTime || 0, students: monthDataForPL.students
                     };
@@ -921,59 +908,18 @@
                     withdrawals: acc.withdrawals + (curr.withdrawals || 0), prevWithdrawals: acc.prevWithdrawals + (curr.prevWithdrawals || 0),
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
-                    flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), 
-                    trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0), // 修正: 追加
+                    flyers: acc.flyers + (curr.flyers || 0), 
+                    touchTry: acc.touchTry + (curr.touchTry || 0), // 追加
+                    trialApp: acc.trialApp + (curr.trialApp || 0), 
+                    trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0),
                     trialActual: acc.trialActual + (curr.trialActual || 0), 
                     partTime: acc.partTime + (curr.partTime || 0)
                 }), { 
                     revenue: 0, prevRevenue: 0, expense: 0, prevExpense: 0, profit: 0, prevProfit: 0, 
                     newEnrollments: 0, prevNewEnrollments: 0, withdrawals: 0, prevWithdrawals: 0,
-                    transferIns: 0, returns: 0, graduates: 0, transfers: 0, flyers: 0, trialApp: 0, trialScheduled: 0, trialActual: 0, partTime: 0 
+                    transferIns: 0, returns: 0, graduates: 0, transfers: 0, flyers: 0, touchTry: 0, trialApp: 0, trialScheduled: 0, trialActual: 0, partTime: 0 
                 });
             }, [displayData, viewMode, monthDataForPL]);
-
-            const monthlySummaryData = useMemo(() => {
-                if (viewMode !== 'monthly' || !monthDataForPL) return [];
-                const data = [
-                    { id: 'revenue', name: '売上', value: monthDataForPL.revenue, prev: monthDataForPL.prevRevenue, fill: COLORS.revenue },
-                    { id: 'ad', name: '広告宣伝費', value: monthDataForPL.ad, prev: monthDataForPL.prevAd, fill: COLORS.ad },
-                    { id: 'sales', name: '販売費', value: monthDataForPL.sales, prev: monthDataForPL.prevSales, fill: COLORS.sales },
-                    { id: 'labor', name: '人件費', value: monthDataForPL.labor, prev: monthDataForPL.prevLabor, fill: COLORS.labor },
-                    { id: 'facility', name: '設備費', value: monthDataForPL.facility, prev: monthDataForPL.prevFacility, fill: COLORS.facility },
-                    { id: 'admin', name: '一般管理費', value: monthDataForPL.admin, prev: monthDataForPL.prevAdmin, fill: COLORS.admin },
-                    { id: 'hq', name: '本社費', value: monthDataForPL.hq, prev: monthDataForPL.prevHq, fill: COLORS.hq },
-                    { id: 'other', name: 'その他', value: monthDataForPL.other, prev: monthDataForPL.prevOther, fill: COLORS.other },
-                    { id: 'profit', name: '営業利益', value: monthDataForPL.profit, prev: monthDataForPL.prevProfit, fill: COLORS.profit },
-                ];
-                return data;
-            }, [monthDataForPL, viewMode]);
-
-            const currentTotalStudents = useMemo(() => {
-                if (viewMode === 'monthly') return monthDataForPL ? monthDataForPL.students : 0;
-                if (viewMode === 'annual' || viewMode === 'half' || viewMode === 'quarter') {
-                    return displayData.length > 0 ? displayData[displayData.length - 1].students : 0;
-                }
-                const mData = fullDashboardData.find(m => m.name === selectedMonth);
-                return mData ? mData.students : 0;
-            }, [fullDashboardData, viewMode, selectedMonth, displayData, monthDataForPL]);
-
-            const currentViewData = useMemo(() => {
-                if (hoveredData) {
-                    return {
-                        ...hoveredData,
-                        revenue: hoveredData.revenue || 0, prevRevenue: hoveredData.prevRevenue,
-                        expense: hoveredData.expense || 0, prevExpense: hoveredData.prevExpense,
-                        profit: hoveredData.profit || 0, prevProfit: hoveredData.prevProfit,
-                        newEnrollments: hoveredData.newEnrollments || 0, prevNewEnrollments: hoveredData.prevNewEnrollments,
-                        withdrawals: hoveredData.withdrawals || 0, prevWithdrawals: hoveredData.prevWithdrawals,
-                        partTime: hoveredData.partTime || 0, totalStudents: hoveredData.students || 0, periodLabel: hoveredData.name
-                    };
-                } else {
-                    return {
-                        ...totals, totalStudents: currentTotalStudents, periodLabel: viewLabel === '月度' ? selectedMonth : viewLabel
-                    };
-                }
-            }, [hoveredData, totals, currentTotalStudents, viewLabel, selectedMonth]);
 
             const calcYoY = (curr, prev) => { if (!prev || prev === 0) return null; return ((curr / prev) * 100).toFixed(1); };
             const handleChartHover = (state) => { if (state && state.activePayload && state.activePayload.length > 0) { setHoveredData(state.activePayload[0].payload); } };
@@ -1317,12 +1263,16 @@
                                                 <YAxis yAxisId="right" orientation="right" />
                                                 <Tooltip />
                                                 <Legend />
+                                                {/* 変更: 門配数とT&T数は左軸 */}
                                                 <Bar yAxisId="left" dataKey="flyers" name="門配数" fill="#94a3b8" />
-                                                <Bar yAxisId="left" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
-                                                <Bar yAxisId="left" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
-                                                {/* 修正: 実施予約(trialScheduled)と実実施数(trialActual)を表示 */}
-                                                <Bar yAxisId="left" dataKey="trialScheduled" name="実施予約" stackId="exec" fill="#facc15" />
-                                                <Bar yAxisId="left" dataKey="trialActual" name="体験実施" stackId="exec" fill="#f97316" />
+                                                <Bar yAxisId="left" dataKey="touchTry" name="T&T数" fill="#82ca9d" />
+                                                
+                                                {/* 変更: 申込・予約・実施系は右軸へ統一 */}
+                                                <Bar yAxisId="right" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
+                                                <Bar yAxisId="right" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
+                                                <Bar yAxisId="right" dataKey="trialScheduled" name="実施予約" stackId="exec" fill="#facc15" />
+                                                <Bar yAxisId="right" dataKey="trialActual" name="体験実施" stackId="exec" fill="#f97316" />
+                                                
                                                 <Line yAxisId="right" type="monotone" dataKey="newEnrollments" name="入会数" stroke="#10b981" strokeWidth={3} />
                                             </ComposedChart>
                                         </ResponsiveContainer>
