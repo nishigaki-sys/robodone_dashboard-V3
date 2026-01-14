@@ -282,20 +282,19 @@
                     const dTransferOut = filterDay(statusChanges, "転校");
                     const dRecess = filterDay(statusChanges, "休会");
                     
-                    // Daily Reports (Including actual trial lessons)
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 修正: 実実施数を日報から集計
+                    // 実実施数 (trialActual) を校舎入力の trialLessons から集計
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
-                    // 修正: 「体験会」以外はすべて「イベント」として扱う
+                    // 体験会以外のtypeは全てイベントとみなす
                     const trialAppsOnly = trialApps.filter(a => a.type === '体験会');
                     const eventAppsOnly = trialApps.filter(a => a.type !== '体験会');
 
                     const dTrialApp = filterDay(trialAppsOnly, null, 'date');
                     const dEventApp = filterDay(eventAppsOnly, null, 'date');
                     
-                    // trialDate is treated as "Scheduled"
+                    // trialDate は実施予定数として集計
                     const dTrialScheduled = filterDay(trialAppsOnly, null, 'trialDate'); 
                     const dEventScheduled = filterDay(eventAppsOnly, null, 'trialDate'); 
 
@@ -307,9 +306,9 @@
                         flyers: dFlyers, 
                         trialApp: dTrialApp, 
                         eventApp: dEventApp, 
-                        trialScheduled: dTrialScheduled, 
+                        trialScheduled: dTrialScheduled, // 予定
                         eventScheduled: dEventScheduled, 
-                        trialActual: dTrialActual 
+                        trialActual: dTrialActual // 実績
                     };
                 });
 
@@ -364,7 +363,7 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
-                        // 修正: グラフに表示されない原因だったキー(trialActual等)を追加
+                        // 集計キーに追加
                         'flyers','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
@@ -388,7 +387,7 @@
         };
 
         // ==========================================
-        // 3. UI Components (Defined BEFORE App)
+        // 3. UI Components
         // ==========================================
         const Notification = ({ msg, type, onClose }) => {
             if (!msg) return null;
@@ -689,155 +688,6 @@
                             </div>
                         </div>
                     )}
-
-                    // ==========================================
-        // 4. School Console Component (DEFINED BEFORE APP)
-        // ==========================================
-        function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify }) {
-            const [activeTab, setActiveTab] = useState('daily');
-            const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return (d.getMonth() + 1) + '月'; });
-            const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
-            const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0 });
-            const [uploading, setUploading] = useState(false);
-            const [planData, setPlanData] = useState({});
-            const [isSavingPlan, setIsSavingPlan] = useState(false);
-            const [uploadTargetYear, setUploadTargetYear] = useState(selectedYear);
-            const [isInputModalOpen, setIsInputModalOpen] = useState(false);
-
-            const lastUploadInfo = useMemo(() => {
-                if (!campus || !allData.financialUpdates) return null;
-                const update = allData.financialUpdates.find(u => u.campusId === campus.id && u.fiscalYear === uploadTargetYear);
-                return update ? parseDate(update.updatedAt) : null;
-            }, [campus, allData.financialUpdates, uploadTargetYear]);
-
-            useEffect(() => {
-                if (activeTab === 'plan' && campus) {
-                    const fetchPlan = async () => {
-                        try {
-                            const docRef = doc(db, "campus_plans", `${campus.id}_${selectedYear}`);
-                            const docSnap = await getDoc(docRef);
-                            setPlanData(docSnap.exists() ? docSnap.data().plans : createInitialPlanData());
-                        } catch (e) { console.error(e); }
-                    };
-                    fetchPlan();
-                }
-            }, [activeTab, campus, selectedYear]);
-
-            const createInitialPlanData = () => {
-                return MONTHS_LIST.reduce((acc, month) => {
-                    acc[month] = { enrollments: 0, trials: 0, touchTry: 0, flyers: 0, rate: 0 };
-                    return acc;
-                }, {});
-            };
-
-            useEffect(() => {
-                if (!campus) return;
-                const existing = allData.dailyReports.find(r => r.campusId === campus.id && r.date === reportDate);
-                if (existing) {
-                    setInputData({
-                        weather: existing.weather || 'sunny', flyers: existing.flyers || 0, touch: existing.touchTry || 0, trial: existing.trialLessons || 0
-                    });
-                } else { setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0 }); }
-            }, [reportDate, allData.dailyReports, campus]);
-
-            const handleDateClick = (dateStr) => { setReportDate(dateStr); setIsInputModalOpen(true); };
-            const handleSaveReport = async () => {
-                if (!campus) return;
-                try {
-                    await setDoc(doc(db, "daily_reports", `${campus.id}_${reportDate}`), {
-                        campusId: campus.id, date: reportDate, weather: inputData.weather,
-                        flyers: Number(inputData.flyers), touchTry: Number(inputData.touch), trialLessons: Number(inputData.trial),
-                        updatedAt: serverTimestamp()
-                    });
-                    refreshData(); showNotify("日報を保存しました"); setIsInputModalOpen(false);
-                } catch(e) { showNotify("エラー: " + e.message, 'error'); }
-            };
-            const handlePlanChange = (month, field, value) => {
-                setPlanData(prev => {
-                    const newData = { ...prev };
-                    newData[month] = { ...newData[month], [field]: Number(value) };
-                    if (field === 'enrollments' || field === 'trials') {
-                        const enr = field === 'enrollments' ? Number(value) : (newData[month].enrollments || 0);
-                        const tri = field === 'trials' ? Number(value) : (newData[month].trials || 0);
-                        newData[month].rate = tri > 0 ? ((enr / tri) * 100).toFixed(1) : 0;
-                    }
-                    return newData;
-                });
-            };
-            const handleSavePlan = async () => {
-                if (!campus) return;
-                setIsSavingPlan(true);
-                try {
-                    await setDoc(doc(db, "campus_plans", `${campus.id}_${selectedYear}`), { campusId: campus.id, year: selectedYear, plans: planData, updatedAt: serverTimestamp() });
-                    showNotify("年間計画を保存しました");
-                } catch (e) { showNotify("保存失敗: " + e.message, 'error'); } finally { setIsSavingPlan(false); }
-            };
-            const handleCsvUpload = async (parsedData) => {
-                if (!campus) return;
-                setUploading(true);
-                try {
-                    const batchSize = 450; 
-                    const q = query(collection(db, "financials"), where("campusId", "==", campus.id), where("fiscalYear", "==", uploadTargetYear));
-                    const snapshot = await getDocs(q);
-                    const chunks = [];
-                    for (let i = 0; i < snapshot.docs.length; i += batchSize) chunks.push(snapshot.docs.slice(i, i + batchSize));
-                    for (const chunk of chunks) { const deleteBatch = writeBatch(db); chunk.forEach(doc => deleteBatch.delete(doc.ref)); await deleteBatch.commit(); }
-                    const insertChunks = [];
-                    for (let i = 0; i < parsedData.length; i += batchSize) insertChunks.push(parsedData.slice(i, i + batchSize));
-                    for (const chunk of insertChunks) {
-                        const insertBatch = writeBatch(db);
-                        chunk.forEach(item => {
-                            let tYear = Number(uploadTargetYear); if (item.month <= 3) tYear += 1;
-                            const dateStr = `${tYear}-${('0'+item.month).slice(-2)}-01`;
-                            const ref = doc(collection(db, "financials"));
-                            insertBatch.set(ref, { 
-                                date: dateStr, fiscalYear: uploadTargetYear, amount: item.amount, 
-                                category: item.category, subCategory: item.subCategory, accountCode: item.accountCode,
-                                campusId: campus.id, createdAt: serverTimestamp() 
-                            });
-                        });
-                        await insertBatch.commit();
-                    }
-                    await setDoc(doc(db, "financial_updates", `${campus.id}_${uploadTargetYear}`), { campusId: campus.id, fiscalYear: uploadTargetYear, updatedAt: serverTimestamp() });
-                    refreshData(); showNotify(`${parsedData.length}件のデータを取り込みました (重複削除済み)`);
-                } catch (e) { showNotify("エラー: " + e.message, 'error'); } finally { setUploading(false); }
-            };
-
-            if (!campus) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-brand-blue"/></div>;
-            const weatherMap = { sunny: {i:Sun,l:'晴',c:'text-orange-500'}, cloudy: {i:Cloud,l:'曇',c:'text-gray-500'}, rainy: {i:CloudRain,l:'雨',c:'text-blue-500'}, snowy: {i:Snowflake,l:'雪',c:'text-cyan-500'}, closed: {i:Ban,l:'休',c:'text-red-500'} };
-            
-            const isJanFebMar = ['1月', '2月', '3月'].includes(selectedMonth);
-            const displayCalendarYear = isJanFebMar ? Number(selectedYear) + 1 : Number(selectedYear);
-
-            return (
-                <div className="flex h-screen bg-brand-slate overflow-hidden fade-in">
-                    {isInputModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay backdrop-blur-sm transition-opacity" onClick={() => setIsInputModalOpen(false)}>
-                            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200 p-6" onClick={e => e.stopPropagation()}>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-lg font-bold text-gray-800 flex items-center"><PenTool className="w-5 h-5 mr-2 text-brand-blue"/> 日報入力</h3>
-                                    <div className="text-sm font-bold text-gray-500">{reportDate}</div>
-                                </div>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-400 block mb-2">天気</label>
-                                        <div className="flex gap-2 justify-between">
-                                            {Object.entries(weatherMap).map(([k,v])=><button key={k} onClick={()=>setInputData({...inputData,weather:k})} className={`flex-1 py-2 rounded-lg border flex flex-col items-center justify-center transition-colors ${inputData.weather===k?'bg-blue-50 border-brand-blue':'border-gray-100 hover:bg-gray-50'}`}><v.i className={`w-4 h-4 mb-1 ${v.c}`}/><span className="text-[10px] font-bold text-gray-500">{v.l}</span></button>)}
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold text-gray-400 block mb-1">門配数</label><input type="number" value={inputData.flyers} onChange={e=>setInputData({...inputData,flyers:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
-                                        <div><label className="text-xs font-bold text-gray-400 block mb-1">T&T数</label><input type="number" value={inputData.touch} onChange={e=>setInputData({...inputData,touch:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
-                                    </div>
-                                    <div><label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label><input type="number" value={inputData.trial} onChange={e=>setInputData({...inputData,trial:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
-                                    <div className="flex gap-3 mt-6">
-                                        <button onClick={() => setIsInputModalOpen(false)} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">キャンセル</button>
-                                        <button onClick={handleSaveReport} className="flex-1 bg-brand-orange text-white font-bold py-3 rounded-lg hover:bg-orange-600 shadow-sm flex items-center justify-center"><Save className="w-4 h-4 mr-2"/>保存</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center space-x-2 mb-1"><School className="w-5 h-5 text-brand-orange" /><span className="font-bold text-sm text-brand-orange">校舎コンソール</span></div>
@@ -989,8 +839,10 @@
             const displayData = useMemo(() => {
                 if (viewMode === 'annual') return fullDashboardData;
                 if (viewMode === 'half' || viewMode === 'quarter') return aggregatePeriod(fullDashboardData, viewMode);
+                
                 const targetMonthData = fullDashboardData.find(m => m.name === selectedMonth);
                 if (!targetMonthData) return [];
+
                 if (viewMode === 'weekly') return targetMonthData.weekly || [];
                 return targetMonthData.daily;
             }, [fullDashboardData, viewMode, selectedMonth]);
@@ -1007,7 +859,9 @@
                         withdrawals: monthDataForPL.withdrawals, prevWithdrawals: monthDataForPL.prevWithdrawals,
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
-                        flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, trialExec: monthDataForPL.trialExec,
+                        flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, 
+                        // 修正: 実実施数を集計
+                        trialActual: monthDataForPL.trialActual, 
                         partTime: monthDataForPL.partTime || 0, students: monthDataForPL.students
                     };
                 }
@@ -1019,12 +873,13 @@
                     withdrawals: acc.withdrawals + (curr.withdrawals || 0), prevWithdrawals: acc.prevWithdrawals + (curr.prevWithdrawals || 0),
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
-                    flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), trialExec: acc.trialExec + (curr.trialExec || 0),
+                    flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), 
+                    trialActual: acc.trialActual + (curr.trialActual || 0), // 修正: 実実施数
                     partTime: acc.partTime + (curr.partTime || 0)
                 }), { 
                     revenue: 0, prevRevenue: 0, expense: 0, prevExpense: 0, profit: 0, prevProfit: 0, 
                     newEnrollments: 0, prevNewEnrollments: 0, withdrawals: 0, prevWithdrawals: 0,
-                    transferIns: 0, returns: 0, graduates: 0, transfers: 0, flyers: 0, trialApp: 0, trialExec: 0, partTime: 0 
+                    transferIns: 0, returns: 0, graduates: 0, transfers: 0, flyers: 0, trialApp: 0, trialActual: 0, partTime: 0 
                 });
             }, [displayData, viewMode, monthDataForPL]);
 
@@ -1416,7 +1271,7 @@
                                                 <Bar yAxisId="left" dataKey="flyers" name="門配数" fill="#94a3b8" />
                                                 <Bar yAxisId="left" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
                                                 <Bar yAxisId="left" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
-                                                {/* 修正: 実施予定ではなく実実施数(trialActual)を表示 */}
+                                                {/* 修正: 実実施数を表示 */}
                                                 <Bar yAxisId="left" dataKey="trialActual" name="体験実施" stackId="exec" fill="#f97316" />
                                                 <Line yAxisId="right" type="monotone" dataKey="newEnrollments" name="入会数" stroke="#10b981" strokeWidth={3} />
                                             </ComposedChart>
