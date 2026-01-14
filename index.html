@@ -207,6 +207,8 @@
             const isTargetCampus = (item) => {
                 let cId = item.campusId; 
                 if (!cId && item.campus) { cId = sheetNameToIdMap[item.campus] || sheetNameToIdMap[normalizeString(item.campus)]; }
+                // 追加: schoolフィールド対応
+                if (!cId && item.school) { cId = sheetNameToIdMap[item.school] || sheetNameToIdMap[normalizeString(item.school)]; }
                 return cId && targetCampusIds.has(cId);
             };
 
@@ -284,6 +286,7 @@
                 const dailyData = Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
                     const dateStr = `${tYear}-${('0'+(tMonth+1)).slice(-2)}-${('0'+day).slice(-2)}`;
+                    
                     const filterDay = (list, typeFilter=null, dateKey='date') => list.filter(item => {
                         if (!isTargetCampus(item)) return false; 
                         let itemDateStr = "";
@@ -557,7 +560,6 @@
                 </div>
             );
         };
-
         // ==========================================
         // 4. School Console Component (DEFINED BEFORE APP)
         // ==========================================
@@ -878,8 +880,7 @@
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
                         flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, 
-                        // 修正: 実施予約と実実施数
-                        trialScheduled: monthDataForPL.trialScheduled,
+                        trialScheduled: monthDataForPL.trialScheduled, // 修正: 追加
                         trialActual: monthDataForPL.trialActual, 
                         partTime: monthDataForPL.partTime || 0, students: monthDataForPL.students
                     };
@@ -893,8 +894,7 @@
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
                     flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), 
-                    // 修正: 実施予約と実実施数を集計
-                    trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0),
+                    trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0), // 修正: 追加
                     trialActual: acc.trialActual + (curr.trialActual || 0), 
                     partTime: acc.partTime + (curr.partTime || 0)
                 }), { 
@@ -1388,7 +1388,18 @@
                         transfers: trans.docs.map(d => ({id:d.id, ...d.data()})),
                         dailyReports: reports.docs.map(d => ({id:d.id, ...d.data()})),
                         financials: finance.docs.map(d => ({id:d.id, ...d.data()})),
-                        trialApps: trials.docs.map(d => ({id:d.id, ...d.data()})),
+                        // 修正: trialApps のデータマッピング
+                        trialApps: trials.docs.map(d => {
+                            const data = d.data();
+                            return {
+                                id: d.id,
+                                campus: data.campus, // 校舎名
+                                date: data.date,     // 申込日
+                                trialDate: data.trialDate, // 実施予約日
+                                type: data.type,     // 種別
+                                createdAt: data.createdAt
+                            };
+                        }),
                         financialUpdates: finUpdates.docs.map(d => ({id:d.id, ...d.data()}))
                     };
                     setCampusList(cList);
