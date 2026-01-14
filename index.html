@@ -114,7 +114,7 @@
 
         const formatYen = (val) => `¥${Number(val).toLocaleString()}`;
         
-        // 修正: 日本語の日付形式 ("2026年1月24日(土) 11:40") に対応した解析関数
+        // 修正: 日本語の日付形式に対応した日付解析関数
         const parseDate = (dateValue) => {
             if (!dateValue) return null;
             if (typeof dateValue.toDate === 'function') return dateValue.toDate();
@@ -401,7 +401,7 @@
                     }
                     return acc;
                 }, { name: g.name, detailItems: {} });
-                if (targets.length > 0) { agg.students = targets[targets.length - 1].students; }
+                if (targets.length > 1) { agg.students = targets[targets.length - 1].students; }
                 Object.keys(agg.detailItems).forEach(k => agg.detailItems[k].sort((a,b) => b.value - a.value));
                 return agg;
             });
@@ -881,6 +881,7 @@
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
                         flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, 
+                        // 修正: 実施予約と実実施数
                         trialScheduled: monthDataForPL.trialScheduled,
                         trialActual: monthDataForPL.trialActual, 
                         partTime: monthDataForPL.partTime || 0, students: monthDataForPL.students
@@ -895,6 +896,7 @@
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
                     flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), 
+                    // 修正: 実施予約と実実施数を集計
                     trialScheduled: acc.trialScheduled + (curr.trialScheduled || 0),
                     trialActual: acc.trialActual + (curr.trialActual || 0), 
                     partTime: acc.partTime + (curr.partTime || 0)
@@ -1336,3 +1338,4 @@
     </script>
 </body>
 </html>
+                    
