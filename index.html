@@ -113,13 +113,31 @@
         };
 
         const formatYen = (val) => `¥${Number(val).toLocaleString()}`;
+        
+        // 修正: 日本語の日付形式に対応した日付解析関数
         const parseDate = (dateValue) => {
             if (!dateValue) return null;
-            if (dateValue && typeof dateValue.toDate === 'function') return dateValue.toDate();
-            if (dateValue && dateValue.seconds) return new Date(dateValue.seconds * 1000);
+            // Firebase Timestamp
+            if (typeof dateValue.toDate === 'function') return dateValue.toDate();
+            if (dateValue.seconds) return new Date(dateValue.seconds * 1000);
+            
+            // String handling
+            if (typeof dateValue === 'string') {
+                // "2026年1月24日(土) 11:40" のような形式に対応
+                let cleanStr = dateValue
+                    .replace(/年/g, '/')
+                    .replace(/月/g, '/')
+                    .replace(/日/g, ' ')
+                    .replace(/[（(].*?[)）]/g, '') // 曜日（土）などを削除
+                    .trim();
+                return new Date(cleanStr);
+            }
+            
             return new Date(dateValue);
         };
+
         const formatDateStr = (date) => {
+            if (!date || isNaN(date.getTime())) return "";
             const y = date.getFullYear();
             const m = ('0' + (date.getMonth() + 1)).slice(-2);
             const d = ('0' + date.getDate()).slice(-2);
@@ -254,7 +272,6 @@
                 const filterPrevMonth = (list, typeFilter=null, dateKey='date') => list.filter(item => {
                     if (!isTargetCampus(item)) return false;
                     let d = parseDate(item[dateKey]);
-                    if (!d && typeof item[dateKey] === 'string') d = new Date(item[dateKey]);
                     if (!d) return false;
                     const iYear = d.getFullYear();
                     const iMonth = d.getMonth() + 1;
@@ -269,8 +286,8 @@
                     const filterDay = (list, typeFilter=null, dateKey='date') => list.filter(item => {
                         if (!isTargetCampus(item)) return false; 
                         let itemDateStr = "";
-                        if (typeof item[dateKey] === 'string' && item[dateKey].match(/^\d{4}-\d{2}-\d{2}$/)) { itemDateStr = item[dateKey]; } 
-                        else { const d = parseDate(item[dateKey]); if (d) itemDateStr = formatDateStr(d); }
+                        const d = parseDate(item[dateKey]); 
+                        if (d) itemDateStr = formatDateStr(d);
                         return itemDateStr === dateStr && (!typeFilter || item.type?.includes(typeFilter));
                     }).length;
 
@@ -284,17 +301,17 @@
                     
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 実実施数 (trialActual) を校舎入力の trialLessons から集計
+                    // 修正: 実実施数を日報の 'trialLessons' から集計
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
-                    // 体験会以外のtypeは全てイベントとみなす
+                    // 修正: '体験会'以外は全てイベントとして扱う
                     const trialAppsOnly = trialApps.filter(a => a.type === '体験会');
                     const eventAppsOnly = trialApps.filter(a => a.type !== '体験会');
 
                     const dTrialApp = filterDay(trialAppsOnly, null, 'date');
                     const dEventApp = filterDay(eventAppsOnly, null, 'date');
                     
-                    // trialDate は実施予定数として集計
+                    // trialDate (実施予定日) を集計対象に。日本語日付もparseDateで対応済み
                     const dTrialScheduled = filterDay(trialAppsOnly, null, 'trialDate'); 
                     const dEventScheduled = filterDay(eventAppsOnly, null, 'trialDate'); 
 
@@ -363,7 +380,7 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
-                        // 集計キーに追加
+                        // 修正: trialActual などの新しいキーをここに含める
                         'flyers','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
@@ -387,7 +404,7 @@
         };
 
         // ==========================================
-        // 3. UI Components
+        // 3. UI Components (Defined BEFORE App)
         // ==========================================
         const Notification = ({ msg, type, onClose }) => {
             if (!msg) return null;
@@ -545,6 +562,7 @@
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify }) {
             const [activeTab, setActiveTab] = useState('daily');
+            // 初期表示時に現在の月を選択状態にする
             const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return (d.getMonth() + 1) + '月'; });
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0 });
@@ -656,6 +674,7 @@
             if (!campus) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-brand-blue"/></div>;
             const weatherMap = { sunny: {i:Sun,l:'晴',c:'text-orange-500'}, cloudy: {i:Cloud,l:'曇',c:'text-gray-500'}, rainy: {i:CloudRain,l:'雨',c:'text-blue-500'}, snowy: {i:Snowflake,l:'雪',c:'text-cyan-500'}, closed: {i:Ban,l:'休',c:'text-red-500'} };
             
+            // 年またぎ対応: 1,2,3月は翌年を表示
             const isJanFebMar = ['1月', '2月', '3月'].includes(selectedMonth);
             const displayCalendarYear = isJanFebMar ? Number(selectedYear) + 1 : Number(selectedYear);
 
@@ -839,10 +858,8 @@
             const displayData = useMemo(() => {
                 if (viewMode === 'annual') return fullDashboardData;
                 if (viewMode === 'half' || viewMode === 'quarter') return aggregatePeriod(fullDashboardData, viewMode);
-                
                 const targetMonthData = fullDashboardData.find(m => m.name === selectedMonth);
                 if (!targetMonthData) return [];
-
                 if (viewMode === 'weekly') return targetMonthData.weekly || [];
                 return targetMonthData.daily;
             }, [fullDashboardData, viewMode, selectedMonth]);
@@ -860,7 +877,6 @@
                         transferIns: monthDataForPL.transferIns, returns: monthDataForPL.returns,
                         graduates: Math.abs(monthDataForPL.graduates_neg || 0), transfers: Math.abs(monthDataForPL.transfers_neg || 0),
                         flyers: monthDataForPL.flyers, trialApp: monthDataForPL.trialApp, 
-                        // 修正: 実実施数を集計
                         trialActual: monthDataForPL.trialActual, 
                         partTime: monthDataForPL.partTime || 0, students: monthDataForPL.students
                     };
@@ -874,7 +890,7 @@
                     transferIns: acc.transferIns + (curr.transferIns || 0), returns: acc.returns + (curr.returns || 0),
                     graduates: acc.graduates + Math.abs(curr.graduates_neg || 0), transfers: acc.transfers + Math.abs(curr.transfers_neg || 0),
                     flyers: acc.flyers + (curr.flyers || 0), trialApp: acc.trialApp + (curr.trialApp || 0), 
-                    trialActual: acc.trialActual + (curr.trialActual || 0), // 修正: 実実施数
+                    trialActual: acc.trialActual + (curr.trialActual || 0), 
                     partTime: acc.partTime + (curr.partTime || 0)
                 }), { 
                     revenue: 0, prevRevenue: 0, expense: 0, prevExpense: 0, profit: 0, prevProfit: 0, 
@@ -1271,7 +1287,7 @@
                                                 <Bar yAxisId="left" dataKey="flyers" name="門配数" fill="#94a3b8" />
                                                 <Bar yAxisId="left" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
                                                 <Bar yAxisId="left" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
-                                                {/* 修正: 実実施数を表示 */}
+                                                {/* 修正: 実実施数 (trialActual) を表示 */}
                                                 <Bar yAxisId="left" dataKey="trialActual" name="体験実施" stackId="exec" fill="#f97316" />
                                                 <Line yAxisId="right" type="monotone" dataKey="newEnrollments" name="入会数" stroke="#10b981" strokeWidth={3} />
                                             </ComposedChart>
