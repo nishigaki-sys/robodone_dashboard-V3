@@ -961,7 +961,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component
+        // 5. HQ Console Component (修正版: マーケティングKPI追加)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache, isAdmin }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -1004,6 +1004,24 @@
             }, [fullDashboardData, viewMode, selectedMonth]);
 
             const monthDataForPL = useMemo(() => { return fullDashboardData.find(m => m.name === selectedMonth); }, [fullDashboardData, selectedMonth]);
+
+            // マーケティングタブ用 集計データ
+            const marketingTotals = useMemo(() => {
+                const sum = displayData.reduce((acc, curr) => ({
+                    flyers: acc.flyers + (curr.flyers || 0),
+                    touchTry: acc.touchTry + (curr.touchTry || 0),
+                    trialApp: acc.trialApp + (curr.trialApp || 0),
+                    eventApp: acc.eventApp + (curr.eventApp || 0),
+                    trialActual: acc.trialActual + (curr.trialActual || 0),
+                    newEnrollments: acc.newEnrollments + (curr.newEnrollments || 0),
+                }), { flyers: 0, touchTry: 0, trialApp: 0, eventApp: 0, trialActual: 0, newEnrollments: 0 });
+
+                const totalApps = sum.trialApp + sum.eventApp;
+                // 入会率 = 入会数 / 体験実施数
+                const rate = sum.trialActual > 0 ? ((sum.newEnrollments / sum.trialActual) * 100).toFixed(1) : "0.0";
+
+                return { ...sum, totalApps, rate };
+            }, [displayData]);
 
             const totals = useMemo(() => {
                 if (viewMode === 'monthly' && monthDataForPL) {
@@ -1448,6 +1466,22 @@
 
                             {activeTab === 'marketing' && (
                                 <div className="space-y-8 animate-in fade-in">
+                                    {/* NEW: KPI Cards Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                        <StatCard title="門配数" value={Number(marketingTotals.flyers).toLocaleString()} subValue="枚" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_1eb00716-6ac0-4be4-9b78-e8e9be44198e.svg" colorClass="text-brand-blue" />
+                                        <StatCard title="T&T数" value={`${marketingTotals.touchTry}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-500" />
+                                        <StatCard
+                                            title="体験・イベント申込"
+                                            value={`${marketingTotals.totalApps}名`}
+                                            subValue={`体験:${marketingTotals.trialApp} / イベ:${marketingTotals.eventApp}`}
+                                            iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_d71099f5-a933-4295-9991-75c16e130f81.svg"
+                                            colorClass="text-brand-blue"
+                                        />
+                                        <StatCard title="体験会実施" value={`${marketingTotals.trialActual}名`} subValue="回" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_f93e0546-f8d7-464b-b008-882ad339027e.svg" colorClass="text-brand-orange" />
+                                        <StatCard title="入会数" value={`${marketingTotals.newEnrollments}名`} subValue="人" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_c7c5b948-913f-4f31-903b-c8a91774107f.svg" colorClass="text-emerald-600" />
+                                        <StatCard title="入会率" value={`${marketingTotals.rate}%`} subValue="入会 ÷ 実施" iconUrl="https://storage.googleapis.com/studio-design-asset-files/projects/nBW2jZ2ZWv/s-150x150_33bb072f-fe8f-4a20-8e5a-0bc5f53bde3d.svg" colorClass="text-rose-500" />
+                                    </div>
+
                                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-[500px]">
                                         <h3 className="text-lg font-bold text-gray-800 mb-6">集客ファネル推移 ({viewLabel})</h3>
                                         <ResponsiveContainer width="100%" height="100%">
