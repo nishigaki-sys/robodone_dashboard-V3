@@ -1702,8 +1702,8 @@
 
                             <div className="max-w-4xl w-full">
                                 <div className="text-center mb-12">
-                                    <h1 className="text-4xl font-bold text-brand-blue mb-4 tracking-tight">Robot School Dashboard V3</h1>
-                                    <p className="text-gray-500">管理コンソールを選択してください</p>
+                                    <h1 className="text-4xl font-bold text-brand-blue mb-4 tracking-tight">ロボ団営業部ダッシュボードv3.0</h1>
+                                    <p className="text-gray-500">選択してください</p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div onClick={handleEnterHQ} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-xl hover:border-brand-blue/30 transition-all group relative overflow-hidden">
@@ -1712,7 +1712,7 @@
                                             <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-blue/20">
                                                 <LayoutDashboard className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部コンソール</h2>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">本部</h2>
                                             <p className="text-sm text-gray-500 mb-6">全校データの閲覧・管理</p>
                                             <span className="inline-flex items-center text-brand-blue font-bold text-sm group-hover:translate-x-1 transition-transform">ログイン <ArrowRight className="ml-2 w-4 h-4" /></span>
                                         </div>
@@ -1723,8 +1723,8 @@
                                             <div className="w-16 h-16 bg-brand-orange rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-orange/20">
                                                 <School className="w-8 h-8 text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎コンソール</h2>
-                                            <p className="text-sm text-gray-500 mb-6">日報・計画・収支入力</p>
+                                            <h2 className="text-2xl font-bold text-gray-800 mb-2">校舎</h2>
+                                            <p className="text-sm text-gray-500 mb-6">日報・計画・収支取込</p>
                                             <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2">
                                                 {campusList.map(c => (
                                                     <button key={c.id} onClick={() => handleEnterSchool(c.id)} className="w-full text-left px-4 py-3 rounded-lg border border-gray-100 hover:border-brand-orange hover:bg-orange-50 transition-colors flex items-center justify-between group">
