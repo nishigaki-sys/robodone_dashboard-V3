@@ -178,7 +178,7 @@
             return { weeks, daysInMonth, year: targetYear, month: jsMonth };
         };
 
-        // ==========================================
+       // ==========================================
         // 2. Data Processing Logic
         // ==========================================
         const determineDetailedCategory = (code) => {
@@ -199,17 +199,45 @@
         const processDashboardData = (campuses, enrollments, statusChanges, transfers, dailyReports, financials, trialApps, targetYear) => {
             const sheetNameToIdMap = {};
             const targetCampusIds = new Set(campuses.map(c => c.id));
+            
+            // 追加: あいまい検索用のマッチャーを作成
+            // 校舎名、連携名(sheetName)のいずれかが、データの校舎名に含まれていれば一致とみなす
+            const targetCampusMatchers = campuses.map(c => ({
+                id: c.id,
+                keywords: [
+                    c.name, 
+                    c.sheetName, 
+                    normalizeString(c.name), 
+                    normalizeString(c.sheetName)
+                ].filter(k => k && k.trim().length > 0)
+            }));
+
             campuses.forEach(c => {
                 const key = c.sheetName || c.name;
                 sheetNameToIdMap[key] = c.id;
                 sheetNameToIdMap[normalizeString(key)] = c.id;
             });
+
+            // 修正: 校舎判定ロジックを強化 (ID判定 + 完全一致 + 部分一致)
             const isTargetCampus = (item) => {
-                let cId = item.campusId; 
-                if (!cId && item.campus) { cId = sheetNameToIdMap[item.campus] || sheetNameToIdMap[normalizeString(item.campus)]; }
-                // 追加: schoolフィールド対応
-                if (!cId && item.school) { cId = sheetNameToIdMap[item.school] || sheetNameToIdMap[normalizeString(item.school)]; }
-                return cId && targetCampusIds.has(cId);
+                // 1. IDによる直接判定 (financials, dailyReports等はcampusIdを持つ)
+                if (item.campusId && targetCampusIds.has(item.campusId)) return true;
+                
+                // 2. 名称テキストの取得 (trialApps等はcampus/schoolを持つ)
+                const rawName = item.campus || item.school;
+                if (!rawName) return false;
+
+                const normName = normalizeString(rawName);
+
+                // 3. マップによる完全一致判定
+                let cId = sheetNameToIdMap[rawName] || sheetNameToIdMap[normName];
+                if (cId && targetCampusIds.has(cId)) return true;
+
+                // 4. 部分一致判定 (「ロボ団エディオン岡崎本店校」vs「岡崎本店」対応)
+                const matched = targetCampusMatchers.find(matcher => 
+                    matcher.keywords.some(keyword => normName.includes(keyword))
+                );
+                return matched ? true : false;
             };
 
             let baseStudentCount = 0;
@@ -305,17 +333,18 @@
                     
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 修正: 実実施数を日報の 'trialLessons' から集計
+                    // 実実施数を日報の 'trialLessons' から集計
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
-                    // 修正: '体験会'以外は全てイベントとして扱う
+                    // trial_applications の集計
                     const trialAppsOnly = trialApps.filter(a => a.type === '体験会');
                     const eventAppsOnly = trialApps.filter(a => a.type !== '体験会');
 
+                    // 申込日(date)ベースの集計
                     const dTrialApp = filterDay(trialAppsOnly, null, 'date');
                     const dEventApp = filterDay(eventAppsOnly, null, 'date');
                     
-                    // trialDate は実施予定数として集計 (強化されたparseDateを利用)
+                    // 実施予定日(trialDate)ベースの集計
                     const dTrialScheduled = filterDay(trialAppsOnly, null, 'trialDate'); 
                     const dEventScheduled = filterDay(eventAppsOnly, null, 'trialDate'); 
 
@@ -384,7 +413,6 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
-                        // 修正: 集計キーに追加
                         'flyers','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
