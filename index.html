@@ -573,14 +573,15 @@
                 </div>
             );
         };
-        // ==========================================
-        // 4. School Console Component (DEFINED BEFORE APP)
+       // ==========================================
+        // 4. School Console Component (修正版: 削除・コメント機能追加)
         // ==========================================
         function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify }) {
             const [activeTab, setActiveTab] = useState('daily');
             const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return (d.getMonth() + 1) + '月'; });
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
-            const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0 });
+            // 修正: commentフィールドを追加
+            const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
             const [uploading, setUploading] = useState(false);
             const [planData, setPlanData] = useState({});
             const [isSavingPlan, setIsSavingPlan] = useState(false);
@@ -613,28 +614,56 @@
                 }, {});
             };
 
+            // 修正: 既存データの読み込み時にコメントも反映
             useEffect(() => {
                 if (!campus) return;
                 const existing = allData.dailyReports.find(r => r.campusId === campus.id && r.date === reportDate);
                 if (existing) {
                     setInputData({
-                        weather: existing.weather || 'sunny', flyers: existing.flyers || 0, touch: existing.touchTry || 0, trial: existing.trialLessons || 0
+                        weather: existing.weather || 'sunny', 
+                        flyers: existing.flyers || 0, 
+                        touch: existing.touchTry || 0, 
+                        trial: existing.trialLessons || 0,
+                        comment: existing.comment || '' // 追加
                     });
-                } else { setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0 }); }
+                } else { 
+                    setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' }); 
+                }
             }, [reportDate, allData.dailyReports, campus]);
 
             const handleDateClick = (dateStr) => { setReportDate(dateStr); setIsInputModalOpen(true); };
+            
             const handleSaveReport = async () => {
                 if (!campus) return;
                 try {
                     await setDoc(doc(db, "daily_reports", `${campus.id}_${reportDate}`), {
-                        campusId: campus.id, date: reportDate, weather: inputData.weather,
-                        flyers: Number(inputData.flyers), touchTry: Number(inputData.touch), trialLessons: Number(inputData.trial),
+                        campusId: campus.id, 
+                        date: reportDate, 
+                        weather: inputData.weather,
+                        flyers: Number(inputData.flyers), 
+                        touchTry: Number(inputData.touch), 
+                        trialLessons: Number(inputData.trial),
+                        comment: inputData.comment, // 追加
                         updatedAt: serverTimestamp()
                     });
                     refreshData(); showNotify("日報を保存しました"); setIsInputModalOpen(false);
                 } catch(e) { showNotify("エラー: " + e.message, 'error'); }
             };
+
+            // 追加: 削除(リセット)機能
+            const handleDeleteReport = async () => {
+                if (!campus) return;
+                if (!confirm("この日の日報データを完全に削除（リセット）しますか？")) return;
+                try {
+                    await deleteDoc(doc(db, "daily_reports", `${campus.id}_${reportDate}`));
+                    // ステートも初期化
+                    setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
+                    refreshData(); 
+                    showNotify("日報データを削除しました"); 
+                    setIsInputModalOpen(false);
+                } catch(e) { showNotify("削除エラー: " + e.message, 'error'); }
+            };
+
             const handlePlanChange = (month, field, value) => {
                 setPlanData(prev => {
                     const newData = { ...prev };
@@ -713,9 +742,25 @@
                                         <div><label className="text-xs font-bold text-gray-400 block mb-1">T&T数</label><input type="number" value={inputData.touch} onChange={e=>setInputData({...inputData,touch:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
                                     </div>
                                     <div><label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label><input type="number" value={inputData.trial} onChange={e=>setInputData({...inputData,trial:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
-                                    <div className="flex gap-3 mt-6">
-                                        <button onClick={() => setIsInputModalOpen(false)} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">キャンセル</button>
-                                        <button onClick={handleSaveReport} className="flex-1 bg-brand-orange text-white font-bold py-3 rounded-lg hover:bg-orange-600 shadow-sm flex items-center justify-center"><Save className="w-4 h-4 mr-2"/>保存</button>
+                                    
+                                    {/* 追加: コメント入力欄 */}
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 block mb-1">コメント (100文字以内)</label>
+                                        <textarea 
+                                            value={inputData.comment} 
+                                            onChange={e=>setInputData({...inputData,comment:e.target.value})} 
+                                            maxLength={100}
+                                            className="w-full border rounded p-2 text-sm text-gray-700 h-20 resize-none focus:ring-2 focus:ring-brand-orange outline-none"
+                                            placeholder="特記事項があれば入力..."
+                                        />
+                                        <div className="text-right text-[10px] text-gray-400">{inputData.comment.length}/100</div>
+                                    </div>
+
+                                    {/* 修正: ボタン配置（削除ボタン追加） */}
+                                    <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
+                                        <button onClick={handleDeleteReport} className="p-3 text-red-500 hover:bg-red-50 rounded-lg" title="データを削除"><Trash2 className="w-5 h-5"/></button>
+                                        <button onClick={() => setIsInputModalOpen(false)} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg font-bold text-sm">キャンセル</button>
+                                        <button onClick={handleSaveReport} className="flex-1 bg-brand-orange text-white font-bold py-3 rounded-lg hover:bg-orange-600 shadow-sm flex items-center justify-center text-sm"><Save className="w-4 h-4 mr-2"/>保存</button>
                                     </div>
                                 </div>
                             </div>
@@ -772,6 +817,8 @@
                                                             <div className="text-[9px] text-gray-500 space-y-0.5">
                                                                 <div className="flex justify-between"><span>門配</span><span className="font-bold">{report.flyers}</span></div>
                                                                 <div className="flex justify-between"><span>T&T</span><span className="font-bold">{report.touchTry}</span></div>
+                                                                {/* コメントがある場合はインジケータを表示 */}
+                                                                {report.comment && <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-brand-orange rounded-full"></div>}
                                                             </div>
                                                         )}
                                                     </div>
