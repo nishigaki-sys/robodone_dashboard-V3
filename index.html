@@ -63,7 +63,7 @@
             LayoutDashboard, Users, TrendingUp, Calendar, DollarSign, Activity, Loader2, 
             Settings, Plus, Trash2, School, FileText, Save, Sun, Cloud, CloudRain, Snowflake, Ban, PenTool, 
             ChevronRight, Upload, FileSpreadsheet, LogOut, ArrowRight, Megaphone, CheckCircle2, AlertCircle, X, ChevronDown, RefreshCw, Database, PieChart as PieIcon, Clock, Search, MapPin, Edit2, TrendingDown, Filter,
-            ArrowUp, ArrowDown // 追加
+            ArrowUp, ArrowDown, Shield, Lock // 追加: Shield, Lock
         } from "lucide-react";
         import { initializeApp } from "firebase/app";
         import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, updateDoc, getDocs, query, orderBy, where, serverTimestamp, writeBatch } from "firebase/firestore";
@@ -115,26 +115,21 @@
 
         const formatYen = (val) => `¥${Number(val).toLocaleString()}`;
         
-        // 修正: 日本語の日付形式に対応した日付解析関数
         const parseDate = (dateValue) => {
             if (!dateValue) return null;
             if (typeof dateValue.toDate === 'function') return dateValue.toDate();
             if (dateValue.seconds) return new Date(dateValue.seconds * 1000);
             
             if (typeof dateValue === 'string') {
-                // "2026年1月24日(土) 11:40" のような形式に対応
                 let cleanStr = dateValue
                     .replace(/年|月/g, '/')
                     .replace(/日/g, ' ')
-                    .replace(/\([^\)]+\)/g, '') // (土)などを削除
+                    .replace(/\([^\)]+\)/g, '') 
                     .trim();
                 const d = new Date(cleanStr);
                 if (!isNaN(d.getTime())) return d;
-                
-                // ISO形式などの標準的な日付
                 return new Date(dateValue);
             }
-            
             return new Date(dateValue);
         };
 
@@ -179,8 +174,8 @@
             return { weeks, daysInMonth, year: targetYear, month: jsMonth };
         };
 
-       // ==========================================
-        // 2. Data Processing Logic (修正版: T&T集計追加)
+        // ==========================================
+        // 2. Data Processing Logic
         // ==========================================
         const determineDetailedCategory = (code) => {
             if (!code) return 'other';
@@ -201,7 +196,6 @@
             const sheetNameToIdMap = {};
             const targetCampusIds = new Set(campuses.map(c => c.id));
             
-            // あいまい検索用マッチャー
             const targetCampusMatchers = campuses.map(c => ({
                 id: c.id,
                 keywords: [c.name, c.sheetName, normalizeString(c.name), normalizeString(c.sheetName)].filter(k => k && k.trim().length > 0)
@@ -213,7 +207,6 @@
                 sheetNameToIdMap[normalizeString(key)] = c.id;
             });
 
-            // 校舎判定ロジック
             const isTargetCampus = (item) => {
                 if (item.campusId && targetCampusIds.has(item.campusId)) return true;
                 const rawName = item.campus || item.school;
@@ -318,7 +311,6 @@
                     
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 追加: T&T数
                     const dTouchTry = dayReports.reduce((sum, r) => sum + (Number(r.touchTry) || 0), 0);
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
@@ -336,7 +328,7 @@
                         withdrawals: dWithdraw, withdrawals_neg: -dWithdraw,
                         graduates_neg: -dGrad, transfers_neg: -dTransferOut, recesses_neg: -dRecess,
                         flyers: dFlyers, 
-                        touchTry: dTouchTry, // 追加
+                        touchTry: dTouchTry,
                         trialApp: dTrialApp, 
                         eventApp: dEventApp, 
                         trialScheduled: dTrialScheduled, 
@@ -353,7 +345,7 @@
                         newEnrollments: sum('newEnrollments'), transferIns: sum('transferIns'), returns: sum('returns'),
                         withdrawals: sum('withdrawals'), withdrawals_neg: sum('withdrawals_neg'), graduates_neg: sum('graduates_neg'),
                         transfers_neg: sum('transfers_neg'), recesses_neg: sum('recesses_neg'), 
-                        flyers: sum('flyers'), touchTry: sum('touchTry'), // 追加
+                        flyers: sum('flyers'), touchTry: sum('touchTry'),
                         trialApp: sum('trialApp'), eventApp: sum('eventApp'), 
                         trialScheduled: sum('trialScheduled'), eventScheduled: sum('eventScheduled'),
                         trialActual: sum('trialActual')
@@ -370,7 +362,7 @@
                     withdrawals: sumDaily('withdrawals'), withdrawals_neg: sumDaily('withdrawals_neg'),
                     transfers_neg: sumDaily('transfers_neg'), graduates_neg: sumDaily('graduates_neg'), recesses_neg: sumDaily('recesses_neg'),
                     flyers: sumDaily('flyers'), 
-                    touchTry: sumDaily('touchTry'), // 追加
+                    touchTry: sumDaily('touchTry'),
                     trialApp: sumDaily('trialApp'), 
                     eventApp: sumDaily('eventApp'),
                     trialScheduled: sumDaily('trialScheduled'),
@@ -398,7 +390,6 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
-                        // 修正: touchTryを追加
                         'flyers','touchTry','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
@@ -574,14 +565,14 @@
                 </div>
             );
         };
-       // ==========================================
-        // 4. School Console Component (修正版: 削除・コメント機能追加)
+
         // ==========================================
-        function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify }) {
+        // 4. School Console Component
+        // ==========================================
+        function SchoolConsole({ onBack, campus, allData, selectedYear, setSelectedYear, refreshData, showNotify, isAdmin }) {
             const [activeTab, setActiveTab] = useState('daily');
             const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return (d.getMonth() + 1) + '月'; });
             const [reportDate, setReportDate] = useState(formatDateStr(new Date()));
-            // 修正: commentフィールドを追加
             const [inputData, setInputData] = useState({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
             const [uploading, setUploading] = useState(false);
             const [planData, setPlanData] = useState({});
@@ -615,7 +606,6 @@
                 }, {});
             };
 
-            // 修正: 既存データの読み込み時にコメントも反映
             useEffect(() => {
                 if (!campus) return;
                 const existing = allData.dailyReports.find(r => r.campusId === campus.id && r.date === reportDate);
@@ -625,7 +615,7 @@
                         flyers: existing.flyers || 0, 
                         touch: existing.touchTry || 0, 
                         trial: existing.trialLessons || 0,
-                        comment: existing.comment || '' // 追加
+                        comment: existing.comment || ''
                     });
                 } else { 
                     setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' }); 
@@ -644,20 +634,18 @@
                         flyers: Number(inputData.flyers), 
                         touchTry: Number(inputData.touch), 
                         trialLessons: Number(inputData.trial),
-                        comment: inputData.comment, // 追加
+                        comment: inputData.comment,
                         updatedAt: serverTimestamp()
                     });
                     refreshData(); showNotify("日報を保存しました"); setIsInputModalOpen(false);
                 } catch(e) { showNotify("エラー: " + e.message, 'error'); }
             };
 
-            // 追加: 削除(リセット)機能
             const handleDeleteReport = async () => {
                 if (!campus) return;
                 if (!confirm("この日の日報データを完全に削除（リセット）しますか？")) return;
                 try {
                     await deleteDoc(doc(db, "daily_reports", `${campus.id}_${reportDate}`));
-                    // ステートも初期化
                     setInputData({ weather: 'sunny', flyers: 0, touch: 0, trial: 0, comment: '' });
                     refreshData(); 
                     showNotify("日報データを削除しました"); 
@@ -744,7 +732,6 @@
                                     </div>
                                     <div><label className="text-xs font-bold text-gray-400 block mb-1">体験会実施数</label><input type="number" value={inputData.trial} onChange={e=>setInputData({...inputData,trial:e.target.value})} className="w-full border rounded p-2 text-right font-bold text-gray-700"/></div>
                                     
-                                    {/* 追加: コメント入力欄 */}
                                     <div>
                                         <label className="text-xs font-bold text-gray-400 block mb-1">コメント (100文字以内)</label>
                                         <textarea 
@@ -757,7 +744,6 @@
                                         <div className="text-right text-[10px] text-gray-400">{inputData.comment.length}/100</div>
                                     </div>
 
-                                    {/* 修正: ボタン配置（削除ボタン追加） */}
                                     <div className="flex gap-2 mt-6 pt-4 border-t border-gray-100">
                                         <button onClick={handleDeleteReport} className="p-3 text-red-500 hover:bg-red-50 rounded-lg" title="データを削除"><Trash2 className="w-5 h-5"/></button>
                                         <button onClick={() => setIsInputModalOpen(false)} className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg font-bold text-sm">キャンセル</button>
@@ -818,7 +804,6 @@
                                                             <div className="text-[9px] text-gray-500 space-y-0.5">
                                                                 <div className="flex justify-between"><span>門配</span><span className="font-bold">{report.flyers}</span></div>
                                                                 <div className="flex justify-between"><span>T&T</span><span className="font-bold">{report.touchTry}</span></div>
-                                                                {/* コメントがある場合はインジケータを表示 */}
                                                                 {report.comment && <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-brand-orange rounded-full"></div>}
                                                             </div>
                                                         )}
@@ -869,15 +854,26 @@
                                             </div>
                                         )}
                                     </div>
-                                    <div className="max-w-xl mx-auto"><CsvUploader onUpload={handleCsvUpload} isUploading={uploading} targetYear={uploadTargetYear} setTargetYear={setUploadTargetYear} /></div>
-                                    <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
-                                        <p className="font-bold mb-2">取込ルール:</p>
-                                        <ul className="list-disc list-inside space-y-1">
-                                            <li><span className="font-bold text-red-500">重要:</span> 詳細分析のため「勘定コード」を保存します。以前のデータを上書き更新してください。</li>
-                                            <li>取り込みを実行すると、選択した年度の既存データは全て上書き(削除→再登録)されます。</li>
-                                            <li>5系:売上, 61:広告, 62:販売, 63:人件費, 64:設備, 65:管理, 69:本社 に自動分類されます。</li>
-                                        </ul>
-                                    </div>
+                                    {/* 修正: 管理者のみ操作可能に */}
+                                    {isAdmin ? (
+                                        <>
+                                            <div className="max-w-xl mx-auto"><CsvUploader onUpload={handleCsvUpload} isUploading={uploading} targetYear={uploadTargetYear} setTargetYear={setUploadTargetYear} /></div>
+                                            <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
+                                                <p className="font-bold mb-2">取込ルール:</p>
+                                                <ul className="list-disc list-inside space-y-1">
+                                                    <li><span className="font-bold text-red-500">重要:</span> 詳細分析のため「勘定コード」を保存します。以前のデータを上書き更新してください。</li>
+                                                    <li>取り込みを実行すると、選択した年度の既存データは全て上書き(削除→再登録)されます。</li>
+                                                    <li>5系:売上, 61:広告, 62:販売, 63:人件費, 64:設備, 65:管理, 69:本社 に自動分類されます。</li>
+                                                </ul>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                                            <Lock className="w-12 h-12 mb-4 text-gray-300" />
+                                            <p className="font-bold text-lg">管理者権限が必要です</p>
+                                            <p className="text-sm mt-2">収支データの取り込みを行うには、管理者モードでログインしてください。</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -887,9 +883,9 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (修正版: 並び替え機能追加)
+        // 5. HQ Console Component
         // ==========================================
-        function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache }) {
+        function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache, isAdmin }) {
             const [activeTab, setActiveTab] = useState('dashboard');
             const [viewMode, setViewMode] = useState('annual');
             const [selectedMonth, setSelectedMonth] = useState('4月');
@@ -907,7 +903,7 @@
             const [editingCampus, setEditingCampus] = useState(null);
             const [editName, setEditName] = useState("");
             const [editSheetName, setEditSheetName] = useState("");
-            const [isReordering, setIsReordering] = useState(false); // 追加: 並び替え中フラグ
+            const [isReordering, setIsReordering] = useState(false);
 
             const filteredCampusList = useMemo(() => {
                 if (selectedHQCampusId === 'All') return campusList;
@@ -1025,7 +1021,6 @@
             const onBarClick = (data, idx, e, catKey) => { openDetailModal(catKey, data); };
             const handleAddCampus = async () => {
                 if (!newCampusId || !newCampusName) return showNotify("必須項目が空です", 'error');
-                // 新規作成時は末尾に追加 (orderを現在の要素数に設定)
                 try { await setDoc(doc(db, "campuses", newCampusId), { id: newCampusId, name: newCampusName, order: campusList.length, createdAt: serverTimestamp() }); setNewCampusId(""); setNewCampusName(""); refreshData(); showNotify("校舎を追加しました"); } catch(e) { showNotify("エラー: " + e.message, 'error'); }
             };
             const handleDeleteCampus = async (id, name) => {
@@ -1038,7 +1033,6 @@
                 try { await updateDoc(doc(db, "campuses", editingCampus.id), { name: editName, sheetName: editSheetName, updatedAt: serverTimestamp() }); setEditModalOpen(false); setEditingCampus(null); refreshData(); showNotify("校舎情報を更新しました"); } catch (e) { showNotify("更新エラー: " + e.message, 'error'); }
             };
 
-            // 追加: 校舎並び替え機能
             const handleReorder = async (index, direction) => {
                 const targetIndex = index + direction;
                 if (targetIndex < 0 || targetIndex >= campusList.length) return;
@@ -1046,18 +1040,16 @@
                 setIsReordering(true);
                 try {
                     const batch = writeBatch(db);
-                    // 表示順を入れ替えたリストを作成
                     const newList = [...campusList];
                     [newList[index], newList[targetIndex]] = [newList[targetIndex], newList[index]];
                     
-                    // リストの全項目のorderフィールドを再設定（正規化）
                     newList.forEach((item, idx) => {
                         const ref = doc(db, "campuses", item.id);
                         batch.update(ref, { order: idx });
                     });
                     
                     await batch.commit();
-                    refreshData(); // 再取得して画面反映
+                    refreshData(); 
                     showNotify("並び順を更新しました");
                 } catch(e) {
                     showNotify("並び替えエラー: " + e.message, 'error');
@@ -1118,11 +1110,15 @@
                             <span className="font-bold text-lg text-gray-800">本部コンソール</span>
                         </div>
                         <nav className="flex-1 p-4 space-y-1">
-                            {[{id:'dashboard',l:'サマリー',i:Activity}, {id:'pl',l:'収支・PL',i:DollarSign}, {id:'students',l:'生徒数',i:Users}, {id:'marketing',l:'マーケティング',i:Megaphone}, {id:'settings',l:'校舎管理',i:Settings}].map(t => (
-                                <button key={t.id} onClick={() => { setActiveTab(t.id); if(t.id !== 'students' && viewMode === 'weekly') setViewMode('monthly'); }} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${activeTab === t.id ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/30' : 'text-gray-500 hover:bg-gray-50'}`}>
-                                    <t.i className="w-5 h-5 mr-3" />{t.l}
-                                </button>
-                            ))}
+                            {/* 修正: 管理者でない場合、settingsタブを表示しない */}
+                            {[{id:'dashboard',l:'サマリー',i:Activity}, {id:'pl',l:'収支・PL',i:DollarSign}, {id:'students',l:'生徒数',i:Users}, {id:'marketing',l:'マーケティング',i:Megaphone}, {id:'settings',l:'校舎管理',i:Settings}].map(t => {
+                                if (t.id === 'settings' && !isAdmin) return null;
+                                return (
+                                    <button key={t.id} onClick={() => { setActiveTab(t.id); if(t.id !== 'students' && viewMode === 'weekly') setViewMode('monthly'); }} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${activeTab === t.id ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/30' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                        <t.i className="w-5 h-5 mr-3" />{t.l}
+                                    </button>
+                                );
+                            })}
                         </nav>
                         <div className="p-4 border-t border-gray-100 space-y-2">
                             <div className="text-xs text-gray-400 flex justify-between px-2"><span>{isUsingCache ? 'Cache' : 'Live'}</span><span>{lastUpdated ? lastUpdated.toLocaleTimeString() : '-'}</span></div>
@@ -1415,7 +1411,6 @@
                                             <div key={c.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center group hover:shadow-md transition-shadow">
                                                 <div><div className="font-bold text-gray-700">{c.name}</div><div className="text-xs text-gray-400">{c.id}</div></div>
                                                 <div className="flex items-center gap-2">
-                                                    {/* 追加: 並び替えボタン */}
                                                     <div className="flex gap-1 mr-2 opacity-50 group-hover:opacity-100 transition-opacity">
                                                         <button onClick={() => handleReorder(index, -1)} disabled={index === 0 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowUp className="w-4 h-4"/></button>
                                                         <button onClick={() => handleReorder(index, 1)} disabled={index === campusList.length - 1 || isReordering} className="p-1 hover:text-brand-blue disabled:opacity-20"><ArrowDown className="w-4 h-4"/></button>
@@ -1435,19 +1430,20 @@
         }
 
         // ==========================================
-        // 6. App Component (修正版: ソート機能追加)
+        // 6. App Component
         // ==========================================
         function App() {
             const [consoleMode, setConsoleMode] = useState('select'); 
             const [selectedCampusId, setSelectedCampusId] = useState(null);
             const [campusList, setCampusList] = useState([]);
-            // 現在日付から初期年度を自動判定 (1-3月なら前年が年度)
             const [selectedYear, setSelectedYear] = useState(() => { const d = new Date(); return d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); });
             const [notification, setNotification] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             const [lastUpdated, setLastUpdated] = useState(null);
             const [isUsingCache, setIsUsingCache] = useState(false);
             const [allData, setAllData] = useState({ enrollments: [], statusChanges: [], transfers: [], dailyReports: [], financials: [], trialApps: [], financialUpdates: [] });
+            // 追加: 管理者モードステート
+            const [isAdmin, setIsAdmin] = useState(false);
 
             const showNotify = (msg, type='success') => {
                 setNotification({ msg, type });
@@ -1486,10 +1482,8 @@
                         getDocs(collection(db, "financial_updates"))
                     ]);
                     
-                    // 修正: orderフィールドによるソート
                     const cList = campuses.docs.map(d => ({ id: d.id, ...d.data() }));
                     cList.sort((a, b) => {
-                        // orderがあれば優先、なければcreatedAtでソート
                         const orderA = typeof a.order === 'number' ? a.order : 9999;
                         const orderB = typeof b.order === 'number' ? b.order : 9999;
                         if (orderA !== orderB) return orderA - orderB;
@@ -1540,7 +1534,19 @@
                 <>
                     <Notification msg={notification?.msg} type={notification?.type} onClose={()=>setNotification(null)} />
                     {consoleMode === 'select' && (
-                        <div className="min-h-screen bg-brand-slate flex items-center justify-center p-6 fade-in">
+                        <div className="min-h-screen bg-brand-slate flex items-center justify-center p-6 fade-in relative">
+                            {/* 追加: 管理者モード切替スイッチ（右上） */}
+                            <div className="absolute top-4 right-4 flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+                                <Shield className={`w-4 h-4 ${isAdmin ? 'text-brand-blue' : 'text-gray-300'}`} />
+                                <span className={`text-xs font-bold ${isAdmin ? 'text-brand-blue' : 'text-gray-400'}`}>管理者モード</span>
+                                <button 
+                                    onClick={() => setIsAdmin(!isAdmin)}
+                                    className={`w-10 h-5 rounded-full flex items-center p-1 transition-colors ${isAdmin ? 'bg-brand-blue' : 'bg-gray-200'}`}
+                                >
+                                    <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${isAdmin ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
                             <div className="max-w-4xl w-full">
                                 <div className="text-center mb-12">
                                     <h1 className="text-4xl font-bold text-brand-blue mb-4 tracking-tight">Robot School Dashboard V3</h1>
@@ -1584,12 +1590,12 @@
                             </div>
                         </div>
                     )}
-                    {consoleMode === 'hq' && <HQConsole onBack={handleBack} campusList={campusList} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} />}
-                    {consoleMode === 'school' && <SchoolConsole onBack={handleBack} campus={campusList.find(c=>c.id===selectedCampusId)} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} />}
+                    {consoleMode === 'hq' && <HQConsole onBack={handleBack} campusList={campusList} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} isAdmin={isAdmin} />}
+                    {consoleMode === 'school' && <SchoolConsole onBack={handleBack} campus={campusList.find(c=>c.id===selectedCampusId)} allData={allData} selectedYear={selectedYear} setSelectedYear={setSelectedYear} refreshData={handleRefresh} showNotify={showNotify} isSyncing={isSyncing} lastUpdated={lastUpdated} isUsingCache={isUsingCache} isAdmin={isAdmin} />}
                 </>
             );
         }
-        
+
         const root = createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
