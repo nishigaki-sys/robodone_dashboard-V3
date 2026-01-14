@@ -839,7 +839,7 @@
         }
 
         // ==========================================
-        // 5. HQ Console Component (修正完了版)
+        // 5. HQ Console Component (修正版: グラフ横並び対応)
         // ==========================================
         function HQConsole({ onBack, campusList, allData, selectedYear, setSelectedYear, refreshData, showNotify, isSyncing, lastUpdated, isUsingCache }) {
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -946,7 +946,6 @@
                 return mData ? mData.students : 0;
             }, [fullDashboardData, viewMode, selectedMonth, displayData, monthDataForPL]);
 
-            // ★★★ ここが抜けていたためエラーになっていました。復元しました。 ★★★
             const currentViewData = useMemo(() => {
                 const viewLabel = { 'annual': '年度', 'half': '半期', 'quarter': '四半期', 'monthly': '月度', 'weekly': '週次' }[viewMode];
                 if (hoveredData) {
@@ -965,7 +964,6 @@
                     };
                 }
             }, [hoveredData, totals, currentTotalStudents, viewMode, selectedMonth]);
-            // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
             const calcYoY = (curr, prev) => { if (!prev || prev === 0) return null; return ((curr / prev) * 100).toFixed(1); };
             const handleChartHover = (state) => { if (state && state.activePayload && state.activePayload.length > 0) { setHoveredData(state.activePayload[0].payload); } };
@@ -1313,11 +1311,13 @@
                                                 <Bar yAxisId="left" dataKey="flyers" name="門配数" fill="#94a3b8" />
                                                 <Bar yAxisId="left" dataKey="touchTry" name="T&T数" fill="#82ca9d" />
                                                 
-                                                {/* 変更: 申込・予約・実施系は右軸へ統一 */}
+                                                {/* 変更: 申込は積み上げ、予約・実施は横並び */}
                                                 <Bar yAxisId="right" dataKey="trialApp" name="体験申込" stackId="app" fill="#3b82f6" />
                                                 <Bar yAxisId="right" dataKey="eventApp" name="イベント申込" stackId="app" fill="#93c5fd" />
-                                                <Bar yAxisId="right" dataKey="trialScheduled" name="実施予約" stackId="exec" fill="#facc15" />
-                                                <Bar yAxisId="right" dataKey="trialActual" name="体験実施" stackId="exec" fill="#f97316" />
+                                                
+                                                {/* 変更: stackIdを削除して横並びにする */}
+                                                <Bar yAxisId="right" dataKey="trialScheduled" name="実施予約" fill="#facc15" />
+                                                <Bar yAxisId="right" dataKey="trialActual" name="体験実施" fill="#f97316" />
                                                 
                                                 <Line yAxisId="right" type="monotone" dataKey="newEnrollments" name="入会数" stroke="#10b981" strokeWidth={3} />
                                             </ComposedChart>
