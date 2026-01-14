@@ -285,6 +285,7 @@
                     const day = i + 1;
                     const dateStr = `${tYear}-${('0'+(tMonth+1)).slice(-2)}-${('0'+day).slice(-2)}`;
                     
+                    // 日付フィルタリングヘルパー
                     const filterDay = (list, typeFilter=null, dateKey='date') => list.filter(item => {
                         if (!isTargetCampus(item)) return false; 
                         const d = parseDate(item[dateKey]);
@@ -303,10 +304,10 @@
                     
                     const dayReports = dailyReports.filter(r => r.date === dateStr && isTargetCampus(r));
                     const dFlyers = dayReports.reduce((sum, r) => sum + (Number(r.flyers) || 0), 0);
-                    // 実実施数を日報から集計
+                    // 修正: 実実施数を日報から集計
                     const dTrialActual = dayReports.reduce((sum, r) => sum + (Number(r.trialLessons) || 0), 0);
 
-                    // 体験会分類
+                    // 修正: 体験会分類
                     const trialAppsOnly = trialApps.filter(a => a.type === '体験会');
                     const eventAppsOnly = trialApps.filter(a => a.type !== '体験会');
 
@@ -326,9 +327,9 @@
                         flyers: dFlyers, 
                         trialApp: dTrialApp, 
                         eventApp: dEventApp, 
-                        trialScheduled: dTrialScheduled, 
+                        trialScheduled: dTrialScheduled, // 予約
                         eventScheduled: dEventScheduled, 
-                        trialActual: dTrialActual 
+                        trialActual: dTrialActual // 実績
                     };
                 });
 
@@ -383,6 +384,7 @@
                     const keys = [
                         'revenue','expense','profit','ad','sales','labor','facility','admin','hq','other','partTime',
                         'newEnrollments','transferIns','returns','withdrawals','graduates_neg','transfers_neg','recesses_neg',
+                        // 修正: 集計対象キーを追加
                         'flyers','trialApp','eventApp','trialScheduled','eventScheduled','trialActual',
                         'withdrawals_neg', 'transfers_neg', 'graduates_neg', 'recesses_neg',
                         'prevRevenue', 'prevExpense', 'prevProfit', 'prevAd', 'prevSales', 'prevLabor', 'prevFacility', 'prevAdmin', 'prevHq', 'prevOther', 'prevNewEnrollments', 'prevWithdrawals'
@@ -558,7 +560,7 @@
                 </div>
             );
         };
-
+        
         // ==========================================
         // 4. School Console Component (DEFINED BEFORE APP)
         // ==========================================
@@ -675,7 +677,6 @@
             if (!campus) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-brand-blue"/></div>;
             const weatherMap = { sunny: {i:Sun,l:'晴',c:'text-orange-500'}, cloudy: {i:Cloud,l:'曇',c:'text-gray-500'}, rainy: {i:CloudRain,l:'雨',c:'text-blue-500'}, snowy: {i:Snowflake,l:'雪',c:'text-cyan-500'}, closed: {i:Ban,l:'休',c:'text-red-500'} };
             
-            // 年またぎ対応: 1,2,3月は翌年を表示
             const isJanFebMar = ['1月', '2月', '3月'].includes(selectedMonth);
             const displayCalendarYear = isJanFebMar ? Number(selectedYear) + 1 : Number(selectedYear);
 
